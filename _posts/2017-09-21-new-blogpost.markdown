@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "New-BlogPost"
-date:   2017-09-21 10:52:57 +0100
+date:   2017-09-21 00:00:00 +00:00
 categories: random
 excerpt_separator: <!--more-->
 ---
