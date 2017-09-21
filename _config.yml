@@ -26,10 +26,14 @@ github_username:  ChrisLGardner
 
 # Build settings
 markdown: kramdown
-theme: jekyll-theme-slate
+#theme: jekyll-theme-slate
+theme: minima
 plugins:
   - jekyll-feed
-gem "github-pages", group: :jekyll_plugins
+gems:
+  - jekyll-paginate
+paginate: 3
+paginate_path: posts/page:num/
 
 # Exclude from processing.
 # The following items will not be processed, by default. Create a custom list
