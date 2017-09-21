@@ -4,15 +4,25 @@ title: About
 permalink: /about/
 ---
 
-This is the base Jekyll theme. You can find out more info about customizing your Jekyll theme, as well as basic Jekyll usage documentation at [jekyllrb.com](https://jekyllrb.com/)
+![Me]({{ site.url }}/assets/Chris_66.png)
 
-You can find the source code for Minima at GitHub:
-[jekyll][jekyll-organization] /
-[minima](https://github.com/jekyll/minima)
+# About me #
 
-You can find the source code for Jekyll at GitHub:
-[jekyll][jekyll-organization] /
-[jekyll](https://github.com/jekyll/jekyll)
+I'm an automation enthusiast with a focus on PowerShell and the Microsoft stack, living in the north of England. I currently work for [Black Marble](https://www.blackmarble.com) as a Consultant specialising in DevOps and ALM using VSTS, with a little bit of dabbling in Azure for both IaaS and PaaS solutions.
 
+I contribute to a variety of open source projects, primarily DSC Resources, and they can all be found on my Github linked below.
+# About this blog #
 
-[jekyll-organization]: https://github.com/jekyll
+This blog will likely end up full of various problems I've fixed with PowerShell and at least some of the scripts I've used to do that. It's mostly aimed at being a log to help me remember what I did if I encounter a problem again and can't find the script but hopefully it helps others if they find it.
+
+I'll likely also document some of the sessions I've attended at various user groups and any sessions I've given myself.
+
+# Contact Details #
+
+[Twitter](https://twitter.com/HalbaradKenafin)
+
+[Github](https://github.com/ChrisLGardner)
+
+[LinkedIn](https://www.linkedin.com/in/chris-gardner-7b907681/)
+
+Email: my twitter handle @ gmail.com
