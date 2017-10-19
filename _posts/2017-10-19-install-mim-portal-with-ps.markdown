@@ -10,6 +10,8 @@ Following on from my [earlier post]({{ site.url }}/powershell/2017/09/21/install
 <!--more-->
 MIM Portal and Service have some pretty big dependencies, the major one being SharePoint 2013 or 2016. Luckily for me the Azure marketplace has an image with this already installed but not configured, this saved me a good amount of time downloading the ISO, unpacking it and installing it, which proved to be very important when Azure has a 90 minute timeout on the DSC extension.
 
+## Prerequisites ##
+
 MIM also depends on SQL, not a problem as we've already got a dedicated SQL server for Sync and SharePoint to use, but it does the dependency in a dumb way by requiring it's "installed" on the machine running the installer. You can get around this by installing SQL Server Management Studio, I dropped the ISO into Azure Files to speed up downloading it so I can use Copy-Item rather than Invoke-WebRequest (which is very slow for large files due to caching them in memory while downloading).
 
 You can access Azure Files pretty easily as a PSDrive using a simple Script block to connect:
@@ -73,6 +75,8 @@ Script DisableServerSideView {
     }
 }
 {% endhighlight %}
+
+## Install Portal And Service ##
 
 With all that done we finally get to the point of actually installing MIM Portal and Service itself. The [documentation](https://docs.microsoft.com/en-us/microsoft-identity-manager/install-mim-service-portal) for this of course shows all the lovely screenshots with buttons to click and boxes to fill in, not an option via DSC so out comes Orca and a manual install using /l*v logging to figure out what all the various properties I need to tell it are.
 
@@ -169,6 +173,8 @@ IS_SYNC_SERVICE_EXISTS = 0
 
 This was due to the MIM Portal server not detecting the Sync server, almost certainly due to a firewall issue but that's next on my list of things to investigate and ensure the ports are open correctly on the Sync server.
 
+### DSC Install ###
+
 With all those properties set and stored in an array we can then use the Package resource in the same way as in the MIM Sync install:
 
 {% highlight PowerShell linenos %}
@@ -184,6 +190,34 @@ Package MimPortalInstall {
 {% endhighlight %}
 
 This installer can take a little while to complete, on its own it takes around 10 minutes but when added to the SharePoint configuration and other things happening in the DSC configuration for this server then it starts to drift very close to the 90 minute timeout. The configuration will still complete correctly but Azure will report it as a failure, which can cause your deployment pipeline to fail if using something like VSTS.
+
+### MSI Exec install ##
+
+Under the hood the Package resource detects that it's an msi being installed and calls msiexec.exe with `/qn` and `/i` switches. Following a similar approach we can install MIM Portal and Service when logged on as the correct user (or using Invoke-Command and CredSSP) with a command line similar to below:
+
+{% highlight PowerShell linenos %}
+$StartProcessParams = @{
+    Filepath = 'msiexec.exe'
+    Argumentlist = @(
+        '/i "C:\MIM\Service and Portal\Service and Portal.msi"'
+        '/qn'
+        $InstallArguments
+    )
+    Wait = $True
+}
+
+Start-Process @StartProcessParams
+{% endhighlight %}
+
+This will perform the same installation as DSC and take the same amount of time but won't add the verification that the Package resource adds to ensure the installation completed successfully, for that you'd need to check the log file yourself. For the log file I've found that it's around 1400kb if it was a successful installation and anything more than that usually suggests it's failed to install, probably in the SharePoint section.
+
+## Installation Problems ##
+
+The main area I've found installation problems are with SharePoint, usually with the WSP failling to install for a variety of reasons. The most common was due to another update happening at the same time and OWSTIMER reporting a conflict, I don't know enough about SharePoint to know if it's possible to deal with this in an easy way but I just left it a few minutes and tried again and it would usually work.
+
+One major issue I found was that there were times the install would fail to install the WSP and the retraction wouldn't complete correctly. This led to future attemtps failling for reasons related to the WSP and any attempts to remove it claimed they were successful but MIM still failed to install because it thought the WSP was installed. The only solution I found was to nuke the SQL and Portal servers and start again. Snapshots before applying the DSC helped speed this up rather than redeploying the full environment.
+
+## Conclusion ##
 
 Hopefully this proves itself useful to somebody, it was certainly an interesting experience figuring out all the properties needed and fighting the installer to correctly install MIM Portal manually.
 
