@@ -215,6 +215,12 @@ This will perform the same installation as DSC and take the same amount of time 
 
 The main area I've found installation problems are with SharePoint, usually with the WSP failling to install for a variety of reasons. The most common was due to another update happening at the same time and OWSTIMER reporting a conflict, I don't know enough about SharePoint to know if it's possible to deal with this in an easy way but I just left it a few minutes and tried again and it would usually work.
 
+The error message for this looks something like this:
+
+```
+An update conflict has occurred, and you must re-try this action. The object LMTRepopulationJob Name=User Profile Service Application Proxy_LMTRepopulationJob was updated by <DomainName>\<SharePointAdmin>, in the OWSTIMER (3336) process, on machine <ComputerName>.  View the tracing log for more information about the conflict.
+```
+
 One major issue I found was that there were times the install would fail to install the WSP and the retraction wouldn't complete correctly. This led to future attemtps failling for reasons related to the WSP and any attempts to remove it claimed they were successful but MIM still failed to install because it thought the WSP was installed. The only solution I found was to nuke the SQL and Portal servers and start again. Snapshots before applying the DSC helped speed this up rather than redeploying the full environment.
 
 ## Conclusion ##
