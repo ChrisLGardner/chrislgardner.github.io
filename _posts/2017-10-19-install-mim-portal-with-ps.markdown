@@ -184,3 +184,7 @@ Package MimPortalInstall {
 {% endhighlight %}
 
 This installer can take a little while to complete, on its own it takes around 10 minutes but when added to the SharePoint configuration and other things happening in the DSC configuration for this server then it starts to drift very close to the 90 minute timeout. The configuration will still complete correctly but Azure will report it as a failure, which can cause your deployment pipeline to fail if using something like VSTS.
+
+Hopefully this proves itself useful to somebody, it was certainly an interesting experience figuring out all the properties needed and fighting the installer to correctly install MIM Portal manually.
+
+Next blog post will be on something a bit less installation focused but probably still DSC related, I'll have to see what new challenge I have to deal with on the next project I work on.
