@@ -6,7 +6,7 @@ date:   2018-02-25 18:00:00 +0000
 excerpt_separator: <!--more-->
 ---
 
-A user on the PowerShell Slack ([https://powershell.slack.com](available here) and [https://slack.poshcode.org](invites here)) asked about getting specific information out of Measure-Object into a more usable PowerShell objects Their initial approach was to use Select-Object and calculatd properties to do this but I suggested a nicer way to handle it by using a short function and pipeline input.
+A user on the PowerShell Slack ([available here](https://powershell.slack.com) and [invites here](https://slack.poshcode.org)) asked about getting specific information out of Measure-Object into a more usable PowerShell objects Their initial approach was to use Select-Object and calculatd properties to do this but I suggested a nicer way to handle it by using a short function and pipeline input.
 
 <!--more-->
 
@@ -92,7 +92,7 @@ It's still a little off from a best practice approach as ideally we'd be putting
 
 All that's missing now is a bit of help text, some verbose logging to help people figure out what's going on, some unit tests and then we're good to go and can drop this in our module of choice.
 
-The fully completed version of the script is available [https://github.com/ChrisLGardner/PowershellScripts/tree/master/ConvertMeasureObject](here) along with all the tests I will have written for it.
+The fully completed version of the script is available [here](https://github.com/ChrisLGardner/PowershellScripts/tree/master/ConvertMeasureObject) along with all the tests I will have written for it.
 
 ## Conclusion ##
 
