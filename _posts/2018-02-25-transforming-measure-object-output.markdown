@@ -2,7 +2,7 @@
 layout: post
 title:  "Transforming Measure-Object output"
 categories: powershell
-date:   2018-02-21 18:00:00 +0000
+date:   2018-02-25 18:00:00 +0000
 excerpt_separator: <!--more-->
 ---
 
