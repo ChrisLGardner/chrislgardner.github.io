@@ -92,7 +92,7 @@ It's still a little off from a best practice approach as ideally we'd be putting
 
 All that's missing now is a bit of help text, some verbose logging to help people figure out what's going on, some unit tests and then we're good to go and can drop this in our module of choice.
 
-The fully completed version of the script is available [https://github.com/ChrisLGardner/PowershellScripts](here) along with all the tests I've written for it.
+The fully completed version of the script is available [https://github.com/ChrisLGardner/PowershellScripts/tree/master/ConvertMeasureObject](here) along with all the tests I will have written for it.
 
 ## Conclusion ##
 
