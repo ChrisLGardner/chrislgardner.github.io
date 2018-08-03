@@ -6,7 +6,7 @@ date:   2018-08-03 18:00:00 +0000
 excerpt_separator: <!--more-->
 ---
 
-It's been a while since my last post so lets get back on track with some "interesting" things I've discovered while working on another project for another blog post (or two). The project involves taking almost all the modules in the PowerShell Gallery and pulling all their help data into a graph database (Neo4j) and then doing some analytics on it. That's still in progress but I thought I'd blog about some of the worst practices I've seen while doing this work.
+It has been a while since my last post so lets get back on track with some "interesting" things I've discovered while working on another project for another blog post (or two). The project involves taking almost all the modules in the PowerShell Gallery and pulling all their help data into a graph database (Neo4j) and then doing some analytics on it. That's still in progress but I thought I'd blog about some of the worst practices I've seen while doing this work.
 
 <!--more-->
 
@@ -46,7 +46,7 @@ An equally annoying one is changing the colours of the text or background colour
 
 ### The Solution
 
-At a minimum take a backup of the current settings that you're about to modify and store that somewhere sensible for the user like $HOME, preferably in the form of a script they can run to revert the changes. Beyond that provide functions to enable and disable the functionaltiy you're module is providing, see Posh-Git as an example; it has a Write-VcsStatus function that you can place in your custom Prompt function and have it work.
+At a minimum take a backup of the current settings that you're about to modify and store that somewhere sensible for the user like $HOME, preferably in the form of a script they can run to revert the changes. Beyond that provide functions to enable and disable the functionality your module is providing, see Posh-Git as an example; it has a Write-VcsStatus function that you can place in your custom Prompt function and have it work.
 
 You can potentially also add some behaviour to your module that deals with what happens when someone runs `Remove-Module MyModule`, the process for doing this is detailed in the Notes section of the help for [https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/remove-module?view=powershell-6#notes](Remove-Module).
 
@@ -54,23 +54,23 @@ You can potentially also add some behaviour to your module that deals with what 
 
 ### The Problem
 
-Set-StrictMode is very helpful for ensuring you haven't made any obvious mistakes in your code, like using a variable before it's been assigned to, but it comes with a problem that many people are apparently not aware of: It's effects apply to the whole current session and not just to your module or function. There are some arguments that could be made to say that StrictMode should be enabled almost all of the time but that should be a user choice and not a random module that I'm using as part of this script I'm writing.
+Set-StrictMode is very helpful for ensuring you haven't made any obvious mistakes in your code, like using a variable before its been assigned to, but it comes with a problem that many people are apparently not aware of: Its effects apply to the whole current session and not just to your module or function. There are some arguments that could be made to say that StrictMode should be enabled almost all of the time but that should be a user choice and not a random module that I'm using as part of this script I'm writing.
 
 ### The Solution
 
-Similar to the soltuion about modifying the prompt and console, make sure you `Set-StrictMode -Off` at the end of your module or function. It's not always obvious when it's been enabled and there isn't a builtin cmdlet to find out if it's enabled and to what level, thankfully Chris Dent has written [https://gist.github.com/indented-automation/9279592035ca952360ce9e33643ba932](this helpful function) to solve this problem.
+Similar to the solution about modifying the prompt and console, make sure you `Set-StrictMode -Off` at the end of your module or function. It is not always obvious when it has been enabled and there isn't a builtin cmdlet to find out if it is enabled and to what level, thankfully Chris Dent has written [https://gist.github.com/indented-automation/9279592035ca952360ce9e33643ba932](this helpful function) to solve this problem.
 
-There are other ways around needing to even enable StrictMode, the best otpion would be Pester tests for all your functions to help ensure you know that all of your code paths will work and that you're function will correctly handle null inputs in places etc. If you're primarily worried about users not inputting values for some parameters then that's where the Mandatory parameter attribute comes in, or validation attributes like `[ValidateNotNullOrEmpty()]` and others.
+There are other ways around needing to even enable StrictMode, the best option would be Pester tests for all your functions to help ensure you know that all of your code paths will work and that your function will correctly handle null inputs in places etc. If you're primarily worried about users not inputting values for some parameters then that's where the Mandatory parameter attribute comes in, or validation attributes like `[ValidateNotNullOrEmpty()]` and others.
 
 ## Don't throw an error and fail importing if non-PowerShell dependencies aren't there
 
 ### The Problem
 
-Some modules rely on tools outside of PowerShell, we're writing PowerShell to automate almost anything and that often means we need third party applications installed on the machines the functions will run on. The solution some module authors have chosen is to check for it on import and throw an error when it's not there, others have chosen to prompt for an optional download of the relevant application. There is some sense in this, you likely can't make much use of the module without that application but it also doesn't account for situations such as an application which has license costs and restrictions in place that prevent it being run on a machine that is being used to write the scripts that make use of it.
+Some modules rely on tools outside of PowerShell, we're writing PowerShell to automate almost anything and that often means we need third party applications installed on the machines the functions will run on. The solution some module authors have chosen is to check for it on import and throw an error when it is not there, others have chosen to prompt for an optional download of the relevant application. There is some sense in this, you likely can't make much use of the module without that application but it also doesn't account for situations such as an application which has license costs and restrictions in place that prevent it being run on a machine that is being used to write the scripts that make use of it.
 
 ### The Solution
 
-The simplest solution is to simply write a warning on import if you don't detect the application or other dependency is there. This lets the user know it's needed but doesn't prevent them from exploring the module, it's commands and, importantly, the help. You can extend this further to have it documented in the Readme for the module detailing these dependencies, this should also be present on the page on the PowerShell Gallery, and it's Github page if it's open source.
+The simplest solution is to simply write a warning on import if you don't detect the application or other dependency is there. This lets the user know it is needed but doesn't prevent them from exploring the module, its commands and, importantly, the help. You can extend this further to have it documented in the Readme for the module detailing these dependencies, this should also be present on the page on the PowerShell Gallery, and its Github page if it is open source.
 
 ## Ensure your module manifest has the correct attributes
 
