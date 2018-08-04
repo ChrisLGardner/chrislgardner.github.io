@@ -52,15 +52,15 @@ At a minimum take a backup of the current settings that you're about to modify a
 
 You can add some behaviour to your module that deals with what happens when someone runs `Remove-Module MyModule`. The process for doing this is detailed in the Notes section of the help for [Remove-Module](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/remove-module?view=powershell-6#notes).
 
-## Don't Set-StrictMode and leave it there
+## Don't Set-PSDebug -Strict and leave it there
 
 ### The Problem
 
-Set-StrictMode is very helpful for ensuring you haven't made any obvious mistakes in your code. For example, ensuring variables are declared assigned before use in another operation. But it comes with a problem that many people are apparently not aware of: It applies to the whole current session and not just to your module or function. There are arguments that could be made to say that StrictMode should be enabled almost all of the time, but that should be a user choice and not a random module that I'm using as part of this script I'm writing.
+`Set-PSDebug -Strict` is very helpful for ensuring you haven't made any obvious mistakes in your code. For example, ensuring variables are declared assigned before use in another operation. But it comes with a problem that many people are apparently not aware of: It applies to the global scope and not just to your module or function.
 
 ### The Solution
 
-Similar to the solution about modifying the prompt and console, make sure you `Set-StrictMode -Off` at the end of your module or function. It is not always obvious when it has been enabled and there isn't a built-in cmdlet to find out if it is enabled and to what level. Thankfully Chris Dent has written [this helpful function](https://gist.github.com/indented-automation/9279592035ca952360ce9e33643ba932) to solve this problem.
+The solution is to just use `Set-StrictMode -Version Latest` (or another version as appropriate). This will grant the benefits of StrictMode but only within the scope of your module. The downside to StrictMode from a users perspective is that it is not always obvious when it has been enabled. There isn't a built-in cmdlet to find out if it is enabled and to what level. Thankfully Chris Dent has written [this helpful function](https://gist.github.com/indented-automation/9279592035ca952360ce9e33643ba932) to solve this problem.
 
 There are other ways around needing to even enable StrictMode. The best option would be Pester tests for all your functions to help ensure you know that all of your code paths will work and that your function will correctly handle null inputs in places etc. If you're primarily worried about users not inputting values for some parameters then use the Mandatory parameter attribute, or validation attributes like `[ValidateNotNullOrEmpty()]` and others.
 
