@@ -28,13 +28,13 @@ This covers using Get-Credential, Read-Host, or various other ways and it goes b
 
 ### The Solution
 
-Provide functions for this: a simple `Connect-MyService -Credential` cmdlet is often enough as then that credential object creation can be automated. Other options include making it configurable using something like `Set-MyServiceConfiguration -Credential`. This is especially useful if you've got a number of other configurable settings and modules. [http://psframework.org/](PSFramework) can make this a lot easier to work with.
+Provide functions for this: a simple `Connect-MyService -Credential` cmdlet is often enough as then that credential object creation can be automated. Other options include making it configurable using something like `Set-MyServiceConfiguration -Credential`. This is especially useful if you've got a number of other configurable settings and modules. [PSFramework](http://psframework.org/) can make this a lot easier to work with.
 
 Storing credentials of any sort securely can be another problem to deal with. Data Protection Application Programming Interface (DPAPI) helps a lot in keeping them secured to just the user who created them on the machine they were created. But that's often going to cause further issues when you run your scripts as dedicated service accounts. There are a few possible solutions to this:
 
-- [https://github.com/Jaykul/BetterCredentials](Better Credentials) stores credentials in the Windows Credential Store for easier retrieval
-- [https://github.com/dlwyatt/ProtectedData](Protected Data) lets you encrypt pretty much anything with either a certificate or a password and supports all the way back to PSv2
-- [https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.security/protect-cmsmessage?view=powershell-5.1](Protect-CmsMessage) and the other CmsMessage cmdlets perform a similar role to ProtectedData but only work on strings and only work on PSv4+
+- [Better Credentials](https://github.com/Jaykul/BetterCredentials) stores credentials in the Windows Credential Store for easier retrieval
+- [ProtectedData](https://github.com/dlwyatt/ProtectedData) lets you encrypt pretty much anything with either a certificate or a password and supports all the way back to PSv2
+- [Protect-CmsMessage](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.security/protect-cmsmessage?view=powershell-5.1) and the other CmsMessage cmdlets perform a similar role to ProtectedData but only work on strings and only work on PSv4+
 
 Before implementing any of these (or your own method) always consider your use case and the possible points of failure.
 
@@ -48,9 +48,9 @@ An equally annoying one is changing the colours of the text or background colour
 
 ### The Solution
 
-At a minimum take a backup of the current settings that you're about to modify and store that somewhere sensible for the user like $HOME. Preferably in the form of a script they can run to revert the changes. Beyond that provide functions to enable and disable the functionality your module is providing. See [https://github.com/dahlbyk/posh-git](Posh-Git) as an example; it has a Write-VcsStatus function that you can place in your custom Prompt function and have it work.
+At a minimum take a backup of the current settings that you're about to modify and store that somewhere sensible for the user like $HOME. Preferably in the form of a script they can run to revert the changes. Beyond that provide functions to enable and disable the functionality your module is providing. See [Posh-Git](https://github.com/dahlbyk/posh-git) as an example; it has a Write-VcsStatus function that you can place in your custom Prompt function and have it work.
 
-You can add some behaviour to your module that deals with what happens when someone runs `Remove-Module MyModule`. The process for doing this is detailed in the Notes section of the help for [https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/remove-module?view=powershell-6#notes](Remove-Module).
+You can add some behaviour to your module that deals with what happens when someone runs `Remove-Module MyModule`. The process for doing this is detailed in the Notes section of the help for [Remove-Module](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/remove-module?view=powershell-6#notes).
 
 ## Don't Set-StrictMode and leave it there
 
@@ -60,7 +60,7 @@ Set-StrictMode is very helpful for ensuring you haven't made any obvious mistake
 
 ### The Solution
 
-Similar to the solution about modifying the prompt and console, make sure you `Set-StrictMode -Off` at the end of your module or function. It is not always obvious when it has been enabled and there isn't a built-in cmdlet to find out if it is enabled and to what level. Thankfully Chris Dent has written [https://gist.github.com/indented-automation/9279592035ca952360ce9e33643ba932](this helpful function) to solve this problem.
+Similar to the solution about modifying the prompt and console, make sure you `Set-StrictMode -Off` at the end of your module or function. It is not always obvious when it has been enabled and there isn't a built-in cmdlet to find out if it is enabled and to what level. Thankfully Chris Dent has written [this helpful function](https://gist.github.com/indented-automation/9279592035ca952360ce9e33643ba932) to solve this problem.
 
 There are other ways around needing to even enable StrictMode. The best option would be Pester tests for all your functions to help ensure you know that all of your code paths will work and that your function will correctly handle null inputs in places etc. If you're primarily worried about users not inputting values for some parameters then use the Mandatory parameter attribute, or validation attributes like `[ValidateNotNullOrEmpty()]` and others.
 
@@ -84,10 +84,10 @@ A number of modules I looked at were missing the RootModule attribute, and didn'
 
 This is a very simple one to fix, set the RootModule attribute of your psd1 to point at your psm1 or compiled dll. If you've got multiple psm1 files then you can make use of the NestedModules attribute, but I'd also set one of them as the RootModule to allow you to Pester test them correctly.
 
-FunctionsToExport is a bit more interesting, it should only list the functions you actually want to present to users. Keeping this up to date as you add new functions can be a bit of a pain especially with multiple people working on the module, the solution is to update it dynamically as part of your process to publish it to the gallery. The [https://github.com/PoshCode/Configuration](Configuration) module has a very useful function for handling this called `Update-Metadata` and I'd highly recommend making use of it, it'll also allow you to update the version number as you publish new versions.
+FunctionsToExport is a bit more interesting, it should only list the functions you actually want to present to users. Keeping this up to date as you add new functions can be a bit of a pain especially with multiple people working on the module, the solution is to update it dynamically as part of your process to publish it to the gallery. The [Configuration](https://github.com/PoshCode/Configuration) module has a very useful function for handling this called `Update-Metadata` and I'd highly recommend making use of it, it'll also allow you to update the version number as you publish new versions.
 
 ## Conclusion
 
 These are some of the problems I've encountered as part of the larger project I'm working on. I'm sure I'll find more as I get closer to being finished with it so check back in future for more updates or other blog posts about them.
 
-If you've encountered anything you think is a "worst practice", disagree with any of these, or want alternate ways to solve some problem then feel free to tweet me [https://twitter.com/halbaradkenafin](@halbaradkenafin) or find me on the [https://j.mp/psslack](PowerShell Slack).
+If you've encountered anything you think is a "worst practice", disagree with any of these, or want alternate ways to solve some problem then feel free to tweet me [@halbaradkenafin](https://twitter.com/halbaradkenafin) or find me on the [PowerShell Slack](https://j.mp/psslack).
