@@ -6,7 +6,7 @@ date:   2018-08-22 18:00:00 +0000
 excerpt_separator: <!--more-->
 ---
 
-As part of a big refactor on an internal module I've decided to add a big pile of Pester tests. The module was lacking them previously due to various reasons and this seemed like the perfect oppurtunity to add them. 
+As part of a big refactor on an internal module I've decided to add a big pile of Pester tests. The module was lacking them previously due to various reasons and this seemed like the perfect oppurtunity to add them.
 
 With my Pester test suites one of the things I like to do is have a bunch of tests for parameters and their various attributes that I want to ensure are correctly set. Previously I'd focused on the easy things like aliases, mandatory-ness, pipeline input etc. but this time I wanted to check for default values since we make use of them in a few places.
 
@@ -157,7 +157,7 @@ First we make sure the type of AST we're looking at is the type we care about, d
 $args[0].Name.VariablePath.UserPath -eq 'ParameterName'
 {% endhighlight %}
 
-Next we compare the name of the parameter to what we want. This is buried a little deeper than just `$args[0].name` and took a little digging around in the resulting AST object that came back without this part of the query. 
+Next we compare the name of the parameter to what we want. This is buried a little deeper than just `$args[0].name` and took a little digging around in the resulting AST object that came back without this part of the query.
 
 {% highlight PowerShell %}
 }, $true)
