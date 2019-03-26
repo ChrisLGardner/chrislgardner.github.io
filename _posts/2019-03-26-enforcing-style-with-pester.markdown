@@ -20,7 +20,7 @@ When looking at the guidelines we'd set out to follow there were a few choices t
 
 I discarded the idea of a custom script from the start, I didn't really want to reinvent existing tooling especially when this will be running across some unknown number of files.
 
-ScriptAnalyzer is pretty much built for doing this kind of work however to achieve it would be to write some custom rules, which at the time was something I didn't have the time or skills for. If I were to revisit thig (and I probably will soo) then that's the route I'll take as I'm much more comfortable with the AST now.
+ScriptAnalyzer is pretty much built for doing this kind of work however to achieve it would be to write some custom rules, which at the time was something I didn't have the time or skills for. If I were to revisit this (and I probably will soon) then that's the route I'll take as I'm much more comfortable with the AST now.
 
 Pester therefore is the last option left, it sort of bridges the gap between the two other options where I just have to write some simple code to check for each guideline I want to test and then if I find it I just throw an error and Pester handles the reporting for me. And because this is going to be run as part of a CI process then I can take those reports and publish them as test results and fail my builds if I want to.
 
