@@ -24,7 +24,7 @@ ScriptAnalyzer is pretty much built for doing this kind of work however to achie
 
 Pester therefore is the last option left, it sort of bridges the gap between the two other options where I just have to write some simple code to check for each guideline I want to test and then if I find it I just throw an error and Pester handles the reporting for me. And because this is going to be run as part of a CI process then I can take those reports and publish them as test results and fail my builds if I want to.
 
-## How do we actually test the guidlines?
+## How do we actually test the guidelines?
 
 This turns out to be both a really simple problem and a really difficult one at the same time, depending on which guideline we want to test. My basic process is quite simple and best illustrated with some psuedo code:
 
