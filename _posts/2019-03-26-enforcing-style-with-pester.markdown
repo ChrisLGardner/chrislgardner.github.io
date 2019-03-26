@@ -6,7 +6,7 @@ date:   2019-03-26 21:00:00 +0000
 excerpt_separator: <!--more-->
 ---
 
-As part of an ongoing effort to improve code quality and consistency across the company we decided to apply the same principles to PowerShell code as we would apply to our C# and other code, since code is code no matter what language it is written in or who maintains it. With this in mind a few of us sat down many months ago and figured out what our style should be using [the community style guide](https://github.com/PoshCode/PowerShellPracticeAndStyle) as a baseline and picking the things we'd like to apply. With these basic guidelines decided it was up to me to enforce these in some way, and Pester as my answer of choice.
+As part of an ongoing effort to improve code quality and consistency across the company we decided to apply the same principles to PowerShell code as we would apply to our C# and other code, since code is code no matter what language it is written in or who maintains it. With this in mind a few of us sat down many months ago and figured out what our style should be using [the community style guide](https://github.com/PoshCode/PowerShellPracticeAndStyle) as a baseline and picking the things we'd like to apply. With these basic guidelines decided it was up to me to enforce these in some way, and Pester as my tool of choice.
 
 <!--more-->
 
