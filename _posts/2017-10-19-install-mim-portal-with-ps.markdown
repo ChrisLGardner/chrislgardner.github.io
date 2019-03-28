@@ -7,7 +7,9 @@ excerpt_separator: <!--more-->
 ---
 
 Following on from my [earlier post]({{ site.url }}/powershell/2017/09/21/install-mim-sync-with-ps.html) about installing MIM Sync I've moved on to installing MIM Portal and Service via PowerShell DSC.
+
 <!--more-->
+
 MIM Portal and Service have some pretty big dependencies, the major one being SharePoint 2013 or 2016. Luckily for me the Azure marketplace has an image with this already installed but not configured, this saved me a good amount of time downloading the ISO, unpacking it and installing it, which proved to be very important when Azure has a 90 minute timeout on the DSC extension.
 
 ## Prerequisites ##
