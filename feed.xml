@@ -1,0 +1,1055 @@
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.7.4">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-04-05T15:18:55+01:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Get-RandomProblems</title><subtitle>A selection of the various problems I've encountered while working in PowerShell on various projects and the solutions I've developed to resolve them.
+</subtitle><entry><title type="html">Enforcing Code Style using Pester</title><link href="http://localhost:4000/powershell/2019/03/26/enforcing-style-with-pester.html" rel="alternate" type="text/html" title="Enforcing Code Style using Pester" /><published>2019-03-26T21:00:00+00:00</published><updated>2019-03-26T21:00:00+00:00</updated><id>http://localhost:4000/powershell/2019/03/26/enforcing-style-with-pester</id><content type="html" xml:base="http://localhost:4000/powershell/2019/03/26/enforcing-style-with-pester.html">&lt;p&gt;As part of an ongoing effort to improve code quality and consistency across the company we decided to apply the same principles to PowerShell code as we would apply to our C# and other code, since code is code no matter what language it is written in or who maintains it. With this in mind a few of us sat down many months ago and figured out what our style should be using &lt;a href=&quot;https://github.com/PoshCode/PowerShellPracticeAndStyle&quot;&gt;the community style guide&lt;/a&gt; as a baseline and picking the things we’d like to apply. With these basic guidelines decided it was up to me to enforce these in some way, and Pester as my tool of choice.&lt;/p&gt;
+
+&lt;!--more--&gt;
+
+&lt;h2 id=&quot;why-pester&quot;&gt;Why Pester&lt;/h2&gt;
+
+&lt;p&gt;When looking at the guidelines we’d set out to follow there were a few choices that could be made to handle this:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Pester&lt;/li&gt;
+  &lt;li&gt;ScriptAnalyzer&lt;/li&gt;
+  &lt;li&gt;Custom script&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;I discarded the idea of a custom script from the start, I didn’t really want to reinvent existing tooling especially when this will be running across some unknown number of files.&lt;/p&gt;
+
+&lt;p&gt;ScriptAnalyzer is pretty much built for doing this kind of work however to achieve it would be to write some custom rules, which at the time was something I didn’t have the time or skills for. If I were to revisit this (and I probably will soon) then that’s the route I’ll take as I’m much more comfortable with the AST now.&lt;/p&gt;
+
+&lt;p&gt;Pester therefore is the last option left, it sort of bridges the gap between the two other options where I just have to write some simple code to check for each guideline I want to test and then if I find it I just throw an error and Pester handles the reporting for me. And because this is going to be run as part of a CI process then I can take those reports and publish them as test results and fail my builds if I want to.&lt;/p&gt;
+
+&lt;h2 id=&quot;how-do-we-actually-test-the-guidelines&quot;&gt;How do we actually test the guidelines?&lt;/h2&gt;
+
+&lt;p&gt;This turns out to be both a really simple problem and a really difficult one at the same time, depending on which guideline we want to test. My basic process is quite simple and best illustrated with some psuedo code:&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;Find all the ps1 and psm1 files in the repository
+For each file found:
+    Check a guideline
+        Log out a warning if it fails with the specific line number it's failing on and why
+    Check next guideline, repeat for each guideline
+
+Optionally, if any tests have failed then fail the build
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Quite a simple approach but quite extensible too as we decide on new guidelines we want to apply as it’s just a case of writing a new Pester test and adding it to the script that runs this. We converted this to a private Azure Pipelines task so we can easily add it to all the builds we have which include any PowerShell and have the guidelines controlled from a single central point.&lt;/p&gt;
+
+&lt;h2 id=&quot;what-does-a-guideline-look-like&quot;&gt;What does a guideline look like?&lt;/h2&gt;
+
+&lt;p&gt;So we know the Why and the How but what does some of this code actually look like, here is an example we have for ensuring that opening braces aren’t on a line on their own as we follow Stroustrup for various reasons.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;It &lt;span class=&quot;s1&quot;&gt;'Should have opening braces on the same line as the statement'&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;$OpeningBracesExist&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$Contents&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;Where&lt;/span&gt;-Object &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;.Trim&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; -eq &lt;span class=&quot;s1&quot;&gt;'{'&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$OpeningBracesExist&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nb&quot;&gt;Write-Warning&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;Found the following opening braces on their own line:&quot;&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;foreach&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$OpeningBrace&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$OpeningBracesExist&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;nb&quot;&gt;Write-Warning&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;Opening Brace on it's own line - &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$OpeningBrace&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;$OpeningBracesExist&lt;/span&gt; | Should -BeNullOrEmpty
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;Again quite a simple example, we’re taking $Contents (which is the result of &lt;code class=&quot;highlighter-rouge&quot;&gt;Get-Content -Path File.ps1&lt;/code&gt;) and checking if any lines contain only &lt;code class=&quot;highlighter-rouge&quot;&gt;{&lt;/code&gt;. If we find any instances of &lt;code class=&quot;highlighter-rouge&quot;&gt;{&lt;/code&gt; then we’ll write some warnings and then fail the test. For most of our projects this isn’t necessary as we’ve got VS Code settings in place to enforce the Stroustrup style, but these settings aren’t in all of our projects yet and some people still like to use full Visual Studio or the PowerShell ISE.&lt;/p&gt;
+
+&lt;p&gt;Now lets look at a more complex example, in this case we’re looking for instances where a developer has made us of one of the Format-* commands to pretty up their output before passing it back to the user. As a general rule a function should always return objects and let the user decide if they want to format them in a pretty way or output to csv or do whatever with them, formatting before the user gets them takes that choice away from them and doesn’t actually return normal objects that they can make use of outside of the console.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;It &lt;span class=&quot;s1&quot;&gt;'Should not have Format-* within a function'&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;$InputScript&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;Scriptblock]::Create&lt;span class=&quot;o&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;Get-Content&lt;/span&gt; -LiteralPath &lt;span class=&quot;nv&quot;&gt;$File&lt;/span&gt;.Fullname -Raw&lt;span class=&quot;o&quot;&gt;))&lt;/span&gt;
+
+    &lt;span class=&quot;nv&quot;&gt;$FunctionPredicate&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;param&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Ast&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+
+        &lt;span class=&quot;nv&quot;&gt;$Ast&lt;/span&gt; -Is &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;System.Management.Automation.Language.FunctionDefinitionAst]
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+    &lt;span class=&quot;nv&quot;&gt;$Functions&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$InputScript&lt;/span&gt;.Ast.FindAll&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$FunctionPredicate&lt;/span&gt;,&lt;span class=&quot;nv&quot;&gt;$true&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;Foreach&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Function&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$Functions&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nv&quot;&gt;$CommandPredicate&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;param&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$ast&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+
+            &lt;span class=&quot;nv&quot;&gt;$Ast&lt;/span&gt; -Is &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;System.Management.Automation.Language.CommandAst] -and
+            &lt;span class=&quot;nv&quot;&gt;$ast&lt;/span&gt;.GetCommandName&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; -like &lt;span class=&quot;s1&quot;&gt;'Format-*'&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+        &lt;span class=&quot;nv&quot;&gt;$Results&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$Function&lt;/span&gt;.FindAll&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$CommandPredicate&lt;/span&gt;,&lt;span class=&quot;nv&quot;&gt;$True&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;Foreach&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$result&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$Results&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nb&quot;&gt;Write-Warning&lt;/span&gt; -Message &lt;span class=&quot;s2&quot;&gt;&quot;Found a line containing a Format cmdlet: &lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Result&lt;/span&gt;.Parent&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+    &lt;span class=&quot;nv&quot;&gt;$Results&lt;/span&gt;.Count | Should Be 0
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;In this case we’re making use of the AST to find all the fuctions defined in a specified script, then for each of those fuction we’re finding all the commands which are named like &lt;code class=&quot;highlighter-rouge&quot;&gt;Format-*&lt;/code&gt;. This is a more recenty addition to the guidelines after a colleague created a few functions outputting pretty data that was completely unusable outside of the console.&lt;/p&gt;
+
+&lt;h2 id=&quot;whats-next&quot;&gt;What’s next?&lt;/h2&gt;
+
+&lt;p&gt;So now we’ve got a bunch of guidelines that we apply to every build containing PowerShell and using Pester to test them, we take the output of those test runs and publish them back to Azure DevOps. This way we can see on a build how many failed and what they were, and when we’re reasonably confident that the majority of our scripts are following these rules we’ll start enforcing build failures when even a single test fails.&lt;/p&gt;
+
+&lt;p&gt;The next step beyond this will be converting many of these to custom ScriptAnalyzer rules. We’ve started making more use of it and are now outputting the results from analysis into SonarQube, so incorporating our custom rules into this would be very useful for an extra level of reporting. Some of them convert reasonably easy, like the check for Format-*, since they already make use of the AST, others will prove to be more difficult such as the check for the opening brace not being on its own line. When I make some progress on that then I’ll almost certianly blog about the process.&lt;/p&gt;</content><author><name></name></author><summary type="html">As part of an ongoing effort to improve code quality and consistency across the company we decided to apply the same principles to PowerShell code as we would apply to our C# and other code, since code is code no matter what language it is written in or who maintains it. With this in mind a few of us sat down many months ago and figured out what our style should be using the community style guide as a baseline and picking the things we’d like to apply. With these basic guidelines decided it was up to me to enforce these in some way, and Pester as my tool of choice.</summary></entry><entry><title type="html">[Scriptblock] and ConvertTo-Json: a match made in recursive hell</title><link href="http://localhost:4000/powershell/2019/02/17/convertto-json-scripblock.html" rel="alternate" type="text/html" title="[Scriptblock] and ConvertTo-Json: a match made in recursive hell" /><published>2019-02-17T13:00:00+00:00</published><updated>2019-02-17T13:00:00+00:00</updated><id>http://localhost:4000/powershell/2019/02/17/convertto-json-scripblock</id><content type="html" xml:base="http://localhost:4000/powershell/2019/02/17/convertto-json-scripblock.html">&lt;p&gt;I’ve been working on &lt;a href=&quot;https://github.com/ChrisLGardner/JeaDsc&quot;&gt;JeaDsc&lt;/a&gt; off and on for a few months to improve on the original project and make it available in the PowerShell Gallery. The biggest bug it’s currently got is that it doesn’t compare an existing configuration against a new one very well, especially for complex configurations. For a DSC resource this is a huge problem and something I’ve been wanting to fix got a little while. As part of fixing it I came across this wonderful problem with ConvertTo-Json.&lt;/p&gt;
+
+&lt;!--more--&gt;
+
+&lt;p&gt;Before I get into the details of the problem and how I worked around it let’s look at JEA a little.&lt;/p&gt;
+
+&lt;h2 id=&quot;what-is-jea&quot;&gt;What is JEA?&lt;/h2&gt;
+
+&lt;p&gt;JEA stands for Just Enough Administration and is a PowerShell feature that allows you to restrict what a user can do when they make use of PowerShell Remoting into another machine. There’s some documentation on &lt;a href=&quot;https://docs.microsoft.com/en-us/powershell/jea/overview&quot;&gt;docs.com&lt;/a&gt; about it.&lt;/p&gt;
+
+&lt;p&gt;With the ever growing use of PowerShell to manage systems, especially at scale, it’s important to consider what permissions a user needs to perform their tasks and only grant them that much access. Level 1 Helpdesk users don’t need Domain Admin permissions if their main work is resetting passwords and basic troubleshooting, but depending on your AD structure you might not be able to easily grant them the permissions they need, this is where JEA comes in. You can define a Role Capabilities file that states a user can only run &lt;code class=&quot;highlighter-rouge&quot;&gt;Set-ADAccountPassword&lt;/code&gt; and that the identity they can specify must be a certain format, that which matches your normal staff users. We then take this file and add it to a Session Configuration file, which specifies who can connect to a PowerShell remoting session and if they do then what permissions they get and a bunch of other useful things like transaction logging etc.&lt;/p&gt;
+
+&lt;p&gt;With this we can securely control who can access which servers and what they can do on those servers, and all of this can be controlled through PowerShell so we can deploy this using DSC. The big benefit of using DSC to handle this is that we can version control these configuration files to see what permissions were granted and when and by who. We can then feed this through a release pipeline to allow us to deploy these changes automatically to our pull server, first to a test environment and then to production. I’ll have another blog post or two on this process in future as I’m currently working on a pipeline for this.&lt;/p&gt;
+
+&lt;h2 id=&quot;where-does-convertto-json-come-into-this&quot;&gt;Where does ConvertTo-Json come into this?&lt;/h2&gt;
+
+&lt;p&gt;As part of JeaDsc we need to test the existing configuration to see if we need to apply the new configuration to it. As both Role Capabilities and Session Configurations are stored as hashtables it’s a little complex to compare them, we can’t just do a simple &lt;code class=&quot;highlighter-rouge&quot;&gt;$ExistingConfiguration -eq $NewConfiguration&lt;/code&gt; as they are different objects even if the keys and values are the same. So my first implementation for Role Capabilities was to make use of a existing function to &lt;a href=&quot;https://github.com/stuartleeks/PesterMatchHashtable&quot;&gt;compare hashtables for pester&lt;/a&gt; but this runs into a bit of problem when the hashtables can be as complex as these, including arrays and hashtables within the values of some of the keys. This wasn’t initially a problem until you start making use of the FunctionDefinitions feature and have to compare scriptblocks, as raised &lt;a href=&quot;https://github.com/ChrisLGardner/JeaDsc/issues/19&quot;&gt;here by Raimund Andree&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;So I looked at how Session Configurations were handling this as that had existing before I started working on this and I found this method:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt; hidden &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;bool&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;]&lt;/span&gt; ComplexObjectsEqual&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$object1&lt;/span&gt;, &lt;span class=&quot;nv&quot;&gt;$object2&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;$object1ordered&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;System.Collections.Specialized.OrderedDictionary]@&lt;span class=&quot;o&quot;&gt;{}&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;$object1&lt;/span&gt;.Keys | &lt;span class=&quot;nb&quot;&gt;Sort-Object&lt;/span&gt; -Descending | &lt;span class=&quot;k&quot;&gt;ForEach&lt;/span&gt;-Object &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$object1ordered&lt;/span&gt;.Insert&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;0, &lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;, &lt;span class=&quot;nv&quot;&gt;$object1&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;])}&lt;/span&gt;
+
+    &lt;span class=&quot;nv&quot;&gt;$object2ordered&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;System.Collections.Specialized.OrderedDictionary]@&lt;span class=&quot;o&quot;&gt;{}&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;$object2&lt;/span&gt;.Keys | &lt;span class=&quot;nb&quot;&gt;Sort-Object&lt;/span&gt; -Descending | &lt;span class=&quot;k&quot;&gt;ForEach&lt;/span&gt;-Object &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$object2ordered&lt;/span&gt;.Insert&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;0, &lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;, &lt;span class=&quot;nv&quot;&gt;$object2&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;])}&lt;/span&gt;
+
+    &lt;span class=&quot;nv&quot;&gt;$json1&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;ConvertTo-Json&lt;/span&gt; -InputObject &lt;span class=&quot;nv&quot;&gt;$object1ordered&lt;/span&gt; -Depth 100
+    &lt;span class=&quot;nv&quot;&gt;$json2&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;ConvertTo-Json&lt;/span&gt; -InputObject &lt;span class=&quot;nv&quot;&gt;$object2ordered&lt;/span&gt; -Depth 100
+
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$json1&lt;/span&gt; -ne &lt;span class=&quot;nv&quot;&gt;$json2&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nb&quot;&gt;Write-Verbose&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;object1: &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$json1&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+        &lt;span class=&quot;nb&quot;&gt;Write-Verbose&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;object2: &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$json2&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$json1&lt;/span&gt; -eq &lt;span class=&quot;nv&quot;&gt;$json2&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;Ignoring the badly named variables, this is a pretty simple but elegant solution. Converting the objects to ordered dictionaries and then to JSON should ensure that the comparison is accurate. This method works very well for Session Configuration files but how well will it work with Role Capabilities? I think we can guess the answer to this by the fact I’m writing a blog post about it.&lt;/p&gt;
+
+&lt;h2 id=&quot;scriptblocks-and-their-properties&quot;&gt;Scriptblocks and their properties&lt;/h2&gt;
+
+&lt;p&gt;Within a JEA Role Capability file ScriptBlocks are used for the FunctionDefinitions and allow administrators to define custom functions that are available within a JEA session to further control what a user can or can’t do. The problem from my perspective comes when I try to convert those to JSON as the default output to the console isn’t the only property of the object, much like many other object types in PowerShell.&lt;/p&gt;
+
+&lt;p&gt;Let’s take a look at an example:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;nb&quot;&gt;PS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$ScriptBlock&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt; Get-Command &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+&lt;span class=&quot;nb&quot;&gt;PS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$scriptblock&lt;/span&gt;
+ Get-Command
+
+&lt;span class=&quot;nb&quot;&gt;PS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$scriptblock&lt;/span&gt;.ToString&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+ Get-Command
+
+&lt;span class=&quot;nb&quot;&gt;PS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$ScriptBlock&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;Get-Member&lt;/span&gt; -MemberType Properties
+   TypeName: System.Management.Automation.ScriptBlock
+
+Name            MemberType Definition
+----            ---------- ----------
+Ast             Property   System.Management.Automation.Language.Ast Ast &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Attributes      Property   System.Collections.Generic.List[System.Attribute] Attributes &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+DebuggerHidden  Property   &lt;span class=&quot;kt&quot;&gt;bool &lt;/span&gt;DebuggerHidden &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;set;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+File            Property   &lt;span class=&quot;kt&quot;&gt;string &lt;/span&gt;File &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Id              Property   guid Id &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+IsConfiguration Property   &lt;span class=&quot;kt&quot;&gt;bool &lt;/span&gt;IsConfiguration &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;set;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+IsFilter        Property   &lt;span class=&quot;kt&quot;&gt;bool &lt;/span&gt;IsFilter &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;set;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Module          Property   psmoduleinfo Module &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+StartPosition   Property   System.Management.Automation.PSToken StartPosition &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;So we can see here that the default output for a &lt;code class=&quot;highlighter-rouge&quot;&gt;[ScriptBlock]&lt;/code&gt; type is just calling the ToString() method on it but it has a few other properties on it that &lt;code class=&quot;highlighter-rouge&quot;&gt;ConvertTo-Json&lt;/code&gt; will try to use instead, since it doesn’t care about methods, and many of these properties also have properties of their own. This normally wouldn’t be a problem as &lt;code class=&quot;highlighter-rouge&quot;&gt;ConvertTo-Json&lt;/code&gt; has a limit of how far down the tree it’ll go, by specifying the &lt;code class=&quot;highlighter-rouge&quot;&gt;-Depth&lt;/code&gt; parameter we can control this and it defaults to 2. Other than not really returning what we need from this I also discovered that after a certain depth there are some references to further up the chain and we get into a bit of a recursive lookup problem before PowerShell either crashes or throws a Stackoverflow exception. &lt;a href=&quot;https://github.com/PowerShell/PowerShell/issues/7091&quot;&gt;Someone else had found this too&lt;/a&gt; and helpfully logged it on GitHub but with no solution in sight and if there was it would only be available in PowerShell 6+ I needed a workaround.&lt;/p&gt;
+
+&lt;h2 id=&quot;the-solutionworkaround&quot;&gt;The Solution/Workaround&lt;/h2&gt;
+
+&lt;p&gt;Because I don’t want all of those properties that come with a ScriptBlock and only really need the ToString() output I decided the simplest soluiton was to just replace any ScriptBlocks with their ToString() output and ended up with this:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$ReferenceObjectordered&lt;/span&gt;.FunctionDefinitions&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;foreach&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$FunctionDefinition&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$ReferenceObjectordered&lt;/span&gt;.FunctionDefinitions&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nv&quot;&gt;$FunctionDefinition&lt;/span&gt;.ScriptBlock &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$FunctionDefinition&lt;/span&gt;.ScriptBlock.Ast.ToString&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;.Replace&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;' '&lt;/span&gt;, &lt;span class=&quot;s1&quot;&gt;''&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;I’m calling the AST version of ToString() to ensure I get the braces in as well, this will make it a bit easier for people debugging if their new configuration doesn’t match the existing one when they’d expect it to, since it’ll match exactly what is in the file. I’m also removing all the whitespace to handle any odd spacing that might come in to play as we don’t care about the code actually running and it won’t have any impact on the Set method.&lt;/p&gt;
+
+&lt;p&gt;The &lt;a href=&quot;https://github.com/ChrisLGardner/JeaDsc/blob/master/JeaDsc.psm1#L105&quot;&gt;full function&lt;/a&gt; has been renamed to something a bit more focused and I’ve updated the variable names to be more meaningful. This will be rolled into the Session Configuration resource as well so that I only have to maintain a single version of the code. I also wrote a &lt;a href=&quot;https://github.com/ChrisLGardner/JeaDsc/blob/master/Tests/Unit/Compare-JeaConfiguration.Tests.ps1&quot;&gt;whole bunch of tests&lt;/a&gt; for the different scenarios I could think of where I’d want to use this function and this way I can ensure it still works whenever I make changes to it, which should hopefully be very rare now.&lt;/p&gt;
+
+&lt;p&gt;Arguably this function should really be called &lt;code class=&quot;highlighter-rouge&quot;&gt;Test-JeaConfiguration&lt;/code&gt; since one output is a bool and it should output &lt;code class=&quot;highlighter-rouge&quot;&gt;$true&lt;/code&gt; when they match but as I’m actually doing a comparison it made more sense to call it &lt;code class=&quot;highlighter-rouge&quot;&gt;Compare-JeaConfiguration&lt;/code&gt;. I should probably fix the output to be &lt;code class=&quot;highlighter-rouge&quot;&gt;$true&lt;/code&gt; when they do match just to remain consistent with the &lt;code class=&quot;highlighter-rouge&quot;&gt;$false&lt;/code&gt; output but other &lt;code class=&quot;highlighter-rouge&quot;&gt;Compare-*&lt;/code&gt; functions don’t necessarily output anything when they match.&lt;/p&gt;</content><author><name></name></author><summary type="html">I’ve been working on JeaDsc off and on for a few months to improve on the original project and make it available in the PowerShell Gallery. The biggest bug it’s currently got is that it doesn’t compare an existing configuration against a new one very well, especially for complex configurations. For a DSC resource this is a huge problem and something I’ve been wanting to fix got a little while. As part of fixing it I came across this wonderful problem with ConvertTo-Json.</summary></entry><entry><title type="html">Function Help Analysis</title><link href="http://localhost:4000/2018/11/13/function-help-analysis.html" rel="alternate" type="text/html" title="Function Help Analysis" /><published>2018-11-13T00:00:00+00:00</published><updated>2018-11-13T00:00:00+00:00</updated><id>http://localhost:4000/2018/11/13/function-help-analysis</id><content type="html" xml:base="http://localhost:4000/2018/11/13/function-help-analysis.html"></content><author><name></name></author><summary type="html"></summary></entry><entry><title type="html">Finding Default Parameter Values with the AST</title><link href="http://localhost:4000/powershell/2018/08/22/finding-default-parameter-values.html" rel="alternate" type="text/html" title="Finding Default Parameter Values with the AST" /><published>2018-08-22T19:00:00+01:00</published><updated>2018-08-22T19:00:00+01:00</updated><id>http://localhost:4000/powershell/2018/08/22/finding-default-parameter-values</id><content type="html" xml:base="http://localhost:4000/powershell/2018/08/22/finding-default-parameter-values.html">&lt;p&gt;As part of a big refactor on an internal module I’ve decided to add a big pile of Pester tests. The module was lacking them previously due to various reasons and this seemed like the perfect oppurtunity to add them.&lt;/p&gt;
+
+&lt;p&gt;With my Pester test suites one of the things I like to do is have a bunch of tests for parameters and their various attributes that I want to ensure are correctly set. Previously I’d focused on the easy things like aliases, mandatory-ness, pipeline input etc. but this time I wanted to check for default values since we make use of them in a few places.&lt;/p&gt;
+
+&lt;!--more--&gt;
+
+&lt;h2 id=&quot;possible-soltuions&quot;&gt;Possible soltuions&lt;/h2&gt;
+
+&lt;p&gt;When approaching this problem there were a few options that occured to me, I could use some regular expressions (regex) to handle it or I could delve into the PowerShell Abstract Syntax Tree (AST). Here’s the sample function we’ll be working with for this:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;k&quot;&gt;Function &lt;/span&gt;Get-SomeData &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;cmdletbinding&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()]&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;param&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;Parameter&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;Mandatory&lt;span class=&quot;o&quot;&gt;)]&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;string&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;]&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$ParameterName&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'DefaultValue'&lt;/span&gt;,
+
+        &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;]&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$HowMany&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+
+    &lt;span class=&quot;nv&quot;&gt;$ParameterName&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;h3 id=&quot;regex&quot;&gt;Regex&lt;/h3&gt;
+
+&lt;p&gt;There’s a running joke among developers that when you choose to use regex to solve a problem then you now have two problems. However in this case it seemend like quite a reasonable solution to implement as it was a very regular pattern that would never be repeated in a file.&lt;/p&gt;
+
+&lt;p&gt;So here’s the regex I came up with, and a handy comment above it with what it all means (perhaps a little too verbose a description):&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;c1&quot;&gt;# \[ - Matches a [ character
+&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;# \w+ - Matches any word character 1 or more times
+&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;# \] - Matches a ] character
+&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;# \$ - Matches a $ character
+&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;# ParameterName - Matches the string ParamterName
+&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;#  * - Matches 0 or more spaces
+&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;# = - Matches a = character
+&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;# (&quot;DefaultValue&quot;|'DefaultValue') - Matches the DefaultValue string in either quotes and captures in a group
+&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;# ,$ - Matches a comma at the end of a line
+&lt;/span&gt;
+
+&lt;span class=&quot;nv&quot;&gt;$regex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;\[\w+\]\&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;`$&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;ParameterName *= *(&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;`&quot;&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;DefaultValue&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;`&quot;&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;|'DefaultValue'),$&quot;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;This works pretty well and will happily find me any instances of that parameter in a file, there should only be 1 so the rest of my It block would look like this:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;It &lt;span class=&quot;s2&quot;&gt;&quot;Should have a default value of 'DefaultValue' for ParameterName parameter&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;$regex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;^\[\w+\]\&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;`$&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;ParameterName *= *(&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;`&quot;&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;DefaultValue&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;`&quot;&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;|'DefaultValue'),$&quot;&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;$MatchStrings&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$Sut&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;Select-String&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$Regex&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;$MatchStrings&lt;/span&gt;.Count | Should -Be 1
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;The major problem I have with this approach is that I have to run it against the functions source file rather than the compiled psm1 file, like all my other tests. It’s unlikely there has been any change in the short time between my script combining all the ps1 files into a single psm1 and the tests running but I still prefer to always test the compiled module.&lt;/p&gt;
+
+&lt;p&gt;It would still be possible to do this test against the compiled psm1 but I’d have to account for how many functions use that parameter with a default value, which either means updating all my effected tests each time I add a new function or maintaining a config file that I use to control the tests. The later is certainly an option but doesn’t feel quite right for this particular testing problem.&lt;/p&gt;
+
+&lt;h3 id=&quot;ast&quot;&gt;AST&lt;/h3&gt;
+
+&lt;p&gt;The alternative approach to this is using the Abstract Syntax Tree and the various methods built into it. There are a number of great posts and books out there describing the AST much better than I can, including quite a good example on &lt;a href=&quot;https://blogs.technet.microsoft.com/heyscriptingguy/2012/09/26/learn-how-it-pros-can-use-the-powershell-ast/&quot;&gt;Hey, Scripting Guy&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;So let’s dive into my solution to this problem. First we have to get our function and its AST representation, which &lt;code class=&quot;highlighter-rouge&quot;&gt;Get-Command&lt;/code&gt; is able to provide quite easily. Let’s see what properties we can retrieve using the ever useful &lt;code class=&quot;highlighter-rouge&quot;&gt;Get-Member&lt;/code&gt;:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;Get-Command -Name Get-SomeData | &lt;span class=&quot;nb&quot;&gt;Get-Member
+
+  &lt;/span&gt;TypeName: System.Management.Automation.FunctionInfo
+
+Name                MemberType     Definition
+----                ----------     ----------
+Equals              Method         &lt;span class=&quot;kt&quot;&gt;bool &lt;/span&gt;Equals&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;System.Object obj&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+GetHashCode         Method         &lt;span class=&quot;kt&quot;&gt;int &lt;/span&gt;GetHashCode&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+GetType             Method         &lt;span class=&quot;nb&quot;&gt;type &lt;/span&gt;GetType&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+ResolveParameter    Method         System.Management.Automation.ParameterMetadata ResolveParameter&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;string &lt;/span&gt;name&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+ToString            Method         &lt;span class=&quot;kt&quot;&gt;string &lt;/span&gt;ToString&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;CmdletBinding       &lt;/span&gt;Property       &lt;span class=&quot;kt&quot;&gt;bool &lt;/span&gt;&lt;span class=&quot;na&quot;&gt;CmdletBinding&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+CommandType         Property       System.Management.Automation.CommandTypes CommandType &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+DefaultParameterSet Property       &lt;span class=&quot;kt&quot;&gt;string &lt;/span&gt;DefaultParameterSet &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Definition          Property       &lt;span class=&quot;kt&quot;&gt;string &lt;/span&gt;Definition &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Description         Property       &lt;span class=&quot;kt&quot;&gt;string &lt;/span&gt;Description &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;set;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+HelpFile            Property       &lt;span class=&quot;kt&quot;&gt;string &lt;/span&gt;HelpFile &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Module              Property       psmoduleinfo Module &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+ModuleName          Property       &lt;span class=&quot;kt&quot;&gt;string &lt;/span&gt;ModuleName &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Name                Property       &lt;span class=&quot;kt&quot;&gt;string &lt;/span&gt;Name &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Noun                Property       &lt;span class=&quot;kt&quot;&gt;string &lt;/span&gt;Noun &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Options             Property       System.Management.Automation.ScopedItemOptions Options &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;set;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+OutputType          Property       System.Collections.ObjectModel.ReadOnlyCollection[System.Management.Automation.PSTypeName] OutputType &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Parameters          Property       System.Collections.Generic.Dictionary[string,System.Management.Automation.ParameterMetadata] Parameters &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+ParameterSets       Property       System.Collections.ObjectModel.ReadOnlyCollection[System.Management.Automation.CommandParameterSetInfo] Par...
+RemotingCapability  Property       System.Management.Automation.RemotingCapability RemotingCapability &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+ScriptBlock         Property       scriptblock ScriptBlock &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Source              Property       &lt;span class=&quot;kt&quot;&gt;string &lt;/span&gt;Source &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Verb                Property       &lt;span class=&quot;kt&quot;&gt;string &lt;/span&gt;Verb &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Version             Property       version Version &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Visibility          Property       System.Management.Automation.SessionStateEntryVisibility Visibility &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;set;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;HelpUri             &lt;/span&gt;ScriptProperty System.Object &lt;span class=&quot;na&quot;&gt;HelpUri&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;get&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$oldProgressPreference&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$ProgressPreference&lt;/span&gt;...&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;That’s a whole lot of properties but the one we’re interested in is &lt;code class=&quot;highlighter-rouge&quot;&gt;ScriptBlock&lt;/code&gt;. That will, unsurprisingly, return us a ScriptBlock object of the function and part of the scriptblock is the AST representation of it.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;Get-Command -Name Get-SomeData&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;.ScriptBlock.Ast | &lt;span class=&quot;nb&quot;&gt;Get-Member
+
+   &lt;/span&gt;TypeName: System.Management.Automation.Language.FunctionDefinitionAst
+
+Name           MemberType Definition
+----           ---------- ----------
+&lt;span class=&quot;nb&quot;&gt;Copy           &lt;/span&gt;Method     System.Management.Automation.Language.Ast &lt;span class=&quot;nb&quot;&gt;Copy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+Equals         Method     &lt;span class=&quot;kt&quot;&gt;bool &lt;/span&gt;Equals&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;System.Object obj&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+Find           Method     System.Management.Automation.Language.Ast Find&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;System.Func[System.Management.Automation.Language.Ast,bool] predicate...
+FindAll        Method     System.Collections.Generic.IEnumerable[System.Management.Automation.Language.Ast] FindAll&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;System.Func[System.Managem...
+GetHashCode    Method     &lt;span class=&quot;kt&quot;&gt;int &lt;/span&gt;GetHashCode&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+GetHelpContent Method     System.Management.Automation.Language.CommentHelpInfo GetHelpContent&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;, System.Management.Automation.Language.Commen...
+GetType        Method     &lt;span class=&quot;nb&quot;&gt;type &lt;/span&gt;GetType&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+SafeGetValue   Method     System.Object SafeGetValue&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+ToString       Method     &lt;span class=&quot;kt&quot;&gt;string &lt;/span&gt;ToString&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+Visit          Method     System.Object Visit&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;System.Management.Automation.Language.ICustomAstVisitor astVisitor&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;, void Visit&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;System.Managemen...
+Body           Property   System.Management.Automation.Language.ScriptBlockAst Body &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Extent         Property   System.Management.Automation.Language.IScriptExtent Extent &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+IsFilter       Property   &lt;span class=&quot;kt&quot;&gt;bool &lt;/span&gt;IsFilter &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+IsWorkflow     Property   &lt;span class=&quot;kt&quot;&gt;bool &lt;/span&gt;IsWorkflow &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Name           Property   &lt;span class=&quot;kt&quot;&gt;string &lt;/span&gt;Name &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Parameters     Property   System.Collections.ObjectModel.ReadOnlyCollection[System.Management.Automation.Language.ParameterAst] Parameters &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+Parent         Property   System.Management.Automation.Language.Ast Parent &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;get;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;From here we want to make use of the FindAll method on the AST. This will let us find all AST elements which match a set of criteria we specify. In this case we want to find all of the AST elements which are of type ParameterAST and which have the name ParameterName.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;Get-Command -Name &lt;span class=&quot;nv&quot;&gt;$Sut&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;.ScriptBlock.Ast.FindAll&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;$args&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;0] -is &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;System.Management.Automation.Language.ParameterAst] -and
+    &lt;span class=&quot;nv&quot;&gt;$args&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;0].Name.VariablePath.UserPath -eq &lt;span class=&quot;s1&quot;&gt;'ParameterName'&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;, &lt;span class=&quot;nv&quot;&gt;$true&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;Here we have a scriptblock in a similar format to those used in &lt;code class=&quot;highlighter-rouge&quot;&gt;Where-Object&lt;/code&gt; and we make use of the &lt;code class=&quot;highlighter-rouge&quot;&gt;$args[0]&lt;/code&gt; automatic variable, which is populated with each AST element one at a time. We can also declare a param block within this scriptblock if we wanted to use a more descriptive variable name.&lt;/p&gt;
+
+&lt;p&gt;Let’s break down what this comparison is doing and look at it more closely:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;nv&quot;&gt;$args&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;0] -is &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;System.Management.Automation.Language.ParameterAst] -and&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;First we make sure the type of AST we’re looking at is the type we care about, due to how &lt;code class=&quot;highlighter-rouge&quot;&gt;-and&lt;/code&gt; comparisons work if this doesn’t match then it’ll continue on to the next AST element without even checking the other part of the comparison. To find the AST type you want to look at, and to generally explore the AST representation of a scriptblock, you can make use of &lt;code class=&quot;highlighter-rouge&quot;&gt;Show-AST&lt;/code&gt; from the &lt;a href=&quot;https://www.powershellgallery.com/packages/ShowPSAst/1.0&quot;&gt;ShowPSAst Module&lt;/a&gt; or there are a few other AST modules available on the gallery as well.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;nv&quot;&gt;$args&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;0].Name.VariablePath.UserPath -eq &lt;span class=&quot;s1&quot;&gt;'ParameterName'&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;Next we compare the name of the parameter to what we want. This is buried a little deeper than just &lt;code class=&quot;highlighter-rouge&quot;&gt;$args[0].name&lt;/code&gt; and took a little digging around in the resulting AST object that came back without this part of the query.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;, &lt;span class=&quot;nv&quot;&gt;$true&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;This section is a little interesting as FindAll expects two arguements passed to it, a Predicate (the scriptblock) and a boolean. The Predicate is what we’ve just looked and it should just return true or false. The boolean is to tell FindAll if it should recurse through nested scriptblocks. In this case we’ll want to do this so I’ve set it to &lt;code class=&quot;highlighter-rouge&quot;&gt;$true&lt;/code&gt; but there are some cases where you won’t want to do this and can therefore set it to &lt;code class=&quot;highlighter-rouge&quot;&gt;$false&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;So now, hopefully, we’ll have an output from this containing the AST object for the parameter we’re looking for. From here we just want to access the &lt;code class=&quot;highlighter-rouge&quot;&gt;Value&lt;/code&gt; property of the &lt;code class=&quot;highlighter-rouge&quot;&gt;DefaultValue&lt;/code&gt; property (as it’s a nested object with some more details in it).&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;Get-Command -Name &lt;span class=&quot;nv&quot;&gt;$Sut&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;.ScriptBlock.Ast.FindAll&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;$args&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;0] -is &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;System.Management.Automation.Language.ParameterAst] -and
+    &lt;span class=&quot;nv&quot;&gt;$args&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;0].Name.VariablePath.UserPath -eq &lt;span class=&quot;s1&quot;&gt;'ParameterName'&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;, &lt;span class=&quot;nv&quot;&gt;$true&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;.DefaultValue
+
+StringConstantType : SingleQuoted
+Value              : DefaultValue
+StaticType         : System.String
+Extent             : &lt;span class=&quot;s1&quot;&gt;'DefaultValue'&lt;/span&gt;
+Parent             : &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;Parameter&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;Mandatory&lt;span class=&quot;o&quot;&gt;)]&lt;/span&gt;
+                     &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;string&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;]&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$ParameterName&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'DefaultValue'&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;So our final test when all this is put together looks like the below. We could add another check in here too to ensure the parameter is only present once but that would probably be better suited a separate test.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;It &lt;span class=&quot;s2&quot;&gt;&quot;Should have a default value of 'DefaultValue' for ParameterName parameter&quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;Get-Command -Name &lt;span class=&quot;nv&quot;&gt;$Sut&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;.ScriptBlock.Ast.FindAll&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nv&quot;&gt;$args&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;0] -is &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;System.Management.Automation.Language.ParameterAst] -and
+        &lt;span class=&quot;nv&quot;&gt;$args&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;0].Name.VariablePath.UserPath -eq &lt;span class=&quot;s1&quot;&gt;'ParameterName'&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;, &lt;span class=&quot;nv&quot;&gt;$true&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;.DefaultValue.Value | Should -Be &lt;span class=&quot;s1&quot;&gt;'DefaultValue'&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;The major benefit this has over the regex approach is that it’ll run against the psm1 file as it’s pulling the functions from Get-Command after the psm1 has been imported. It’s also a lot more focused and less brittle than the regex approach, if a parameter isn’t strongly typed then the regex will miss it. There are solutions to these problems but it will often feel like investing time and effort into a less flexible solution.&lt;/p&gt;
+
+&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;/h2&gt;
+
+&lt;p&gt;The AST is really powerful but can also be pretty complicated when you’re first looking at it, tools like Show-AST help a lot and there are a lot of really good blog posts out there about working with the AST. There are also a few really helpful people on the &lt;a href=&quot;https://j.mp/psslack&quot;&gt;PowerShell Slack&lt;/a&gt; who know a good deal about the AST. As we can see in this situation it has given us a much more flexible solution to the problem we were trying to solve and it accounts for a lot more possible situations.&lt;/p&gt;
+
+&lt;p&gt;Regex is an even more powerful and complicated beast but it can be pretty difficult to get your pattern correct for the various use cases you have. It’s a tool I’ll often employ first but it is not always the best solution, as can be seen here.&lt;/p&gt;</content><author><name></name></author><summary type="html">As part of a big refactor on an internal module I’ve decided to add a big pile of Pester tests. The module was lacking them previously due to various reasons and this seemed like the perfect oppurtunity to add them. With my Pester test suites one of the things I like to do is have a bunch of tests for parameters and their various attributes that I want to ensure are correctly set. Previously I’d focused on the easy things like aliases, mandatory-ness, pipeline input etc. but this time I wanted to check for default values since we make use of them in a few places.</summary></entry><entry><title type="html">Module Worst Practices</title><link href="http://localhost:4000/powershell/2018/08/03/module-worst-practices.html" rel="alternate" type="text/html" title="Module Worst Practices" /><published>2018-08-03T19:00:00+01:00</published><updated>2018-08-03T19:00:00+01:00</updated><id>http://localhost:4000/powershell/2018/08/03/module-worst-practices</id><content type="html" xml:base="http://localhost:4000/powershell/2018/08/03/module-worst-practices.html">&lt;p&gt;It has been a while since my last post so let’s get back on track with some “interesting” things I’ve discovered while working on another project for another blog post (or two).&lt;/p&gt;
+
+&lt;p&gt;The project involves taking almost all the modules in the PowerShell Gallery and pulling all their help data into a graph database (Neo4j) and then doing some analytics on it. That’s still in progress but I thought I’d blog about some of the worst practices I’ve seen while doing this work.&lt;/p&gt;
+
+&lt;!--more--&gt;
+
+&lt;p&gt;The proces was split into 3 steps:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Import the module and add a node to the DB&lt;/li&gt;
+  &lt;li&gt;Get all the public commands in the module and add each as a node in the DB&lt;/li&gt;
+  &lt;li&gt;Get the help for each command and update the command node with some properties&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Ignoring the various performance improvements I could have made in this process (more on those in the other post), there were a number of problems that jumped out from these steps. We’ll start with the most annoying ones and work from there.&lt;/p&gt;
+
+&lt;h2 id=&quot;do-not-prompt-for-credentials-on-import&quot;&gt;Do not prompt for credentials on import&lt;/h2&gt;
+
+&lt;h3 id=&quot;the-problem&quot;&gt;The Problem&lt;/h3&gt;
+
+&lt;p&gt;This covers using Get-Credential, Read-Host, or various other ways and it goes beyond just normal credentials but any sort of values to access things, like API keys or access tokens. This stops any sort of automation dead if you haven’t previously run the import manually and set up these values, assuming they can be persisted to disk securely somewhere.&lt;/p&gt;
+
+&lt;h3 id=&quot;the-solution&quot;&gt;The Solution&lt;/h3&gt;
+
+&lt;p&gt;Provide functions for this: a simple &lt;code class=&quot;highlighter-rouge&quot;&gt;Connect-MyService -Credential&lt;/code&gt; cmdlet is often enough as then that credential object creation can be automated. Other options include making it configurable using something like &lt;code class=&quot;highlighter-rouge&quot;&gt;Set-MyServiceConfiguration -Credential&lt;/code&gt;. This is especially useful if you’ve got a number of other configurable settings and modules. &lt;a href=&quot;http://psframework.org/&quot;&gt;PSFramework&lt;/a&gt; can make this a lot easier to work with.&lt;/p&gt;
+
+&lt;p&gt;Storing credentials of any sort securely can be another problem to deal with. Data Protection Application Programming Interface (DPAPI) helps a lot in keeping them secured to just the user who created them on the machine they were created. But that’s often going to cause further issues when you run your scripts as dedicated service accounts. There are a few possible solutions to this:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;a href=&quot;https://github.com/Jaykul/BetterCredentials&quot;&gt;Better Credentials&lt;/a&gt; stores credentials in the Windows Credential Store for easier retrieval&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;https://github.com/dlwyatt/ProtectedData&quot;&gt;ProtectedData&lt;/a&gt; lets you encrypt pretty much anything with either a certificate or a password and supports all the way back to PSv2&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.security/protect-cmsmessage?view=powershell-5.1&quot;&gt;Protect-CmsMessage&lt;/a&gt; and the other CmsMessage cmdlets perform a similar role to ProtectedData but only work on strings and only work on PSv4+&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Before implementing any of these (or your own method) always consider your use case and the possible points of failure.&lt;/p&gt;
+
+&lt;h2 id=&quot;dont-change-the-prompt-or-console-without-warning&quot;&gt;Don’t change the prompt or console without warning&lt;/h2&gt;
+
+&lt;h3 id=&quot;the-problem-1&quot;&gt;The Problem&lt;/h3&gt;
+
+&lt;p&gt;Suddenly finding your prompt has changed from whatever you had before, even if you didn’t intentionally set it up that way, can be a jarring user experience. Some modules are specifically designed to make changes to the prompt or add extra functionality. They can be very powerful in what they offer beyond the basics offered by the console. The problem comes when they make those changes on import and then don’t offer a way to reverse it on removal.&lt;/p&gt;
+
+&lt;p&gt;An equally annoying one is changing the colours of the text or background colour; I’ve also seen at least one instance of a module clearing the screen on import before dumping some module information to it. These were bad user experiences and no matter how good those modules were at what they did I was considerably less likely to be using them.&lt;/p&gt;
+
+&lt;h3 id=&quot;the-solution-1&quot;&gt;The Solution&lt;/h3&gt;
+
+&lt;p&gt;At a minimum take a backup of the current settings that you’re about to modify and store that somewhere sensible for the user like $HOME. Preferably in the form of a script they can run to revert the changes. Beyond that provide functions to enable and disable the functionality your module is providing. See &lt;a href=&quot;https://github.com/dahlbyk/posh-git&quot;&gt;Posh-Git&lt;/a&gt; as an example; it has a Write-VcsStatus function that you can place in your custom Prompt function and have it work.&lt;/p&gt;
+
+&lt;p&gt;You can add some behaviour to your module that deals with what happens when someone runs &lt;code class=&quot;highlighter-rouge&quot;&gt;Remove-Module MyModule&lt;/code&gt;. The process for doing this is detailed in the Notes section of the help for &lt;a href=&quot;https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/remove-module?view=powershell-6#notes&quot;&gt;Remove-Module&lt;/a&gt;.&lt;/p&gt;
+
+&lt;h2 id=&quot;dont-set-psdebug--strict-and-leave-it-there&quot;&gt;Don’t Set-PSDebug -Strict and leave it there&lt;/h2&gt;
+
+&lt;h3 id=&quot;the-problem-2&quot;&gt;The Problem&lt;/h3&gt;
+
+&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;Set-PSDebug -Strict&lt;/code&gt; is very helpful for ensuring you haven’t made any obvious mistakes in your code. For example, ensuring variables are declared assigned before use in another operation. But it comes with a problem that many people are apparently not aware of: It applies to the global scope and not just to your module or function.&lt;/p&gt;
+
+&lt;h3 id=&quot;the-solution-2&quot;&gt;The Solution&lt;/h3&gt;
+
+&lt;p&gt;The solution is to just use &lt;code class=&quot;highlighter-rouge&quot;&gt;Set-StrictMode -Version Latest&lt;/code&gt; (or another version as appropriate). This will grant the benefits of StrictMode but only within the scope of your module. The downside to StrictMode from a users perspective is that it is not always obvious when it has been enabled. There isn’t a built-in cmdlet to find out if it is enabled and to what level. Thankfully Chris Dent has written &lt;a href=&quot;https://gist.github.com/indented-automation/9279592035ca952360ce9e33643ba932&quot;&gt;this helpful function&lt;/a&gt; to solve this problem.&lt;/p&gt;
+
+&lt;p&gt;There are other ways around needing to even enable StrictMode. The best option would be Pester tests for all your functions to help ensure you know that all of your code paths will work and that your function will correctly handle null inputs in places etc. If you’re primarily worried about users not inputting values for some parameters then use the Mandatory parameter attribute, or validation attributes like &lt;code class=&quot;highlighter-rouge&quot;&gt;[ValidateNotNullOrEmpty()]&lt;/code&gt; and others.&lt;/p&gt;
+
+&lt;h2 id=&quot;dont-throw-an-error-and-fail-importing-if-non-powershell-dependencies-arent-there&quot;&gt;Don’t throw an error and fail importing if non-PowerShell dependencies aren’t there&lt;/h2&gt;
+
+&lt;h3 id=&quot;the-problem-3&quot;&gt;The Problem&lt;/h3&gt;
+
+&lt;p&gt;Some modules rely on tools outside of PowerShell, we’re writing PowerShell to automate almost anything. That often means we need third party applications installed on the machines the functions will run on. The solution some module authors have chosen is to check for it on import and throw an error when it is not present. Others have chosen to prompt for an optional download of the relevant application. There is some sense in this, you likely can’t make much use of the module without that application. But it doesn’t account for situations such as an application which has restrictions, such as license costs, in place that prevent it being run on a machine that is being used to write the scripts that make use of it.&lt;/p&gt;
+
+&lt;h3 id=&quot;the-solution-3&quot;&gt;The Solution&lt;/h3&gt;
+
+&lt;p&gt;The simplest solution is to write a warning on import if you don’t detect the application or other dependency is there. This lets the user know it is needed but doesn’t prevent them from exploring the module, its commands and, importantly, the help. You can extend this further to have it documented in the Readme for the module detailing these dependencies, this should also be present on the page on the PowerShell Gallery, and its Github page if it is open source.&lt;/p&gt;
+
+&lt;h2 id=&quot;ensure-your-module-manifest-has-the-correct-attributes&quot;&gt;Ensure your module manifest has the correct attributes&lt;/h2&gt;
+
+&lt;h3 id=&quot;the-problem-4&quot;&gt;The Problem&lt;/h3&gt;
+
+&lt;p&gt;A number of modules I looked at were missing the RootModule attribute, and didn’t make use of NestedModules or the other attributes that also work for this. By missing out these attributes the module wasn’t exporting any commands, which means when I run &lt;code class=&quot;highlighter-rouge&quot;&gt;Get-Module MyModule -ListAvailable&lt;/code&gt; or &lt;code class=&quot;highlighter-rouge&quot;&gt;Get-Command -Module MyModule&lt;/code&gt; I get no output for what commands are available. The other common issue I’ve seen was &lt;code class=&quot;highlighter-rouge&quot;&gt;FunctionsToExport = @()&lt;/code&gt; which also results in no commands being exported, even if you’ve called &lt;code class=&quot;highlighter-rouge&quot;&gt;Export-ModuleMember -Function&lt;/code&gt; at the end of your psm1 file. The main cause of this is when a module developer has been working with the psm1 file and only adds the psd1 file to publish it to the PowerShell Gallery and doesn’t fully understand what all the attributes are for, they’ll keep importing just the psm1 and it works fine for them.&lt;/p&gt;
+
+&lt;h3 id=&quot;the-solution-4&quot;&gt;The Solution&lt;/h3&gt;
+
+&lt;p&gt;This is a very simple one to fix, set the RootModule attribute of your psd1 to point at your psm1 or compiled dll. If you’ve got multiple psm1 files then you can make use of the NestedModules attribute, but I’d also set one of them as the RootModule to allow you to Pester test them correctly.&lt;/p&gt;
+
+&lt;p&gt;FunctionsToExport is a bit more interesting, it should only list the functions you actually want to present to users. Keeping this up to date as you add new functions can be a bit of a pain especially with multiple people working on the module, the solution is to update it dynamically as part of your process to publish it to the gallery. The &lt;a href=&quot;https://github.com/PoshCode/Configuration&quot;&gt;Configuration&lt;/a&gt; module has a very useful function for handling this called &lt;code class=&quot;highlighter-rouge&quot;&gt;Update-Metadata&lt;/code&gt; and I’d highly recommend making use of it, it’ll also allow you to update the version number as you publish new versions.&lt;/p&gt;
+
+&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;/h2&gt;
+
+&lt;p&gt;These are some of the problems I’ve encountered as part of the larger project I’m working on. I’m sure I’ll find more as I get closer to being finished with it so check back in future for more updates or other blog posts about them.&lt;/p&gt;
+
+&lt;p&gt;If you’ve encountered anything you think is a “worst practice”, disagree with any of these, or want alternate ways to solve some problem then feel free to tweet me &lt;a href=&quot;https://twitter.com/halbaradkenafin&quot;&gt;@halbaradkenafin&lt;/a&gt; or find me on the &lt;a href=&quot;https://j.mp/psslack&quot;&gt;PowerShell Slack&lt;/a&gt;.&lt;/p&gt;</content><author><name></name></author><summary type="html">It has been a while since my last post so let’s get back on track with some “interesting” things I’ve discovered while working on another project for another blog post (or two). The project involves taking almost all the modules in the PowerShell Gallery and pulling all their help data into a graph database (Neo4j) and then doing some analytics on it. That’s still in progress but I thought I’d blog about some of the worst practices I’ve seen while doing this work.</summary></entry><entry><title type="html">Transforming Measure-Object output</title><link href="http://localhost:4000/powershell/2018/02/25/transforming-measure-object-output.html" rel="alternate" type="text/html" title="Transforming Measure-Object output" /><published>2018-02-25T18:00:00+00:00</published><updated>2018-02-25T18:00:00+00:00</updated><id>http://localhost:4000/powershell/2018/02/25/transforming-measure-object-output</id><content type="html" xml:base="http://localhost:4000/powershell/2018/02/25/transforming-measure-object-output.html">&lt;p&gt;A user on the PowerShell Slack (&lt;a href=&quot;https://powershell.slack.com&quot;&gt;available here&lt;/a&gt; and &lt;a href=&quot;https://slack.poshcode.org&quot;&gt;invites here&lt;/a&gt;) asked about getting specific information out of Measure-Object into a more usable PowerShell objects Their initial approach was to use Select-Object and calculatd properties to do this but I suggested a nicer way to handle it by using a short function and pipeline input.&lt;/p&gt;
+
+&lt;!--more--&gt;
+
+&lt;p&gt;So the best place to start with anything like this is to get some example data and what they want the output to look like. The outputted data from Measure-Object looked like below.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;Average       Sum Maximum Minimum Property
+ -------       --- ------- ------- --------
+            123.45                 Interest
+         123456.78                 Total&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;The way they wanted the data to look at the end was something like this:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;    Total Interest
+    ----- --------
+123456.78   123.45&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;To transform this data and flatten it out into a single object was quite easy. The initial attempt at doing this made use of a hashtable to build up the object and then cast it to a PsCustomObject.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;nv&quot;&gt;$hash&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; @&lt;span class=&quot;o&quot;&gt;{}&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;foreach&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$row&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$ComplexObject&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;$Hash&lt;/span&gt;.add&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Row&lt;/span&gt;.Property, &lt;span class=&quot;nv&quot;&gt;$ComplexObject&lt;/span&gt;.Where&lt;span class=&quot;o&quot;&gt;({&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;.Property -eq &lt;span class=&quot;nv&quot;&gt;$row&lt;/span&gt;.property&lt;span class=&quot;o&quot;&gt;})&lt;/span&gt;.sum&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;nv&quot;&gt;$RealObject&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;pscustomobject]&lt;span class=&quot;nv&quot;&gt;$Hash&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;This will take an object (in this cast &lt;code class=&quot;highlighter-rouge&quot;&gt;$ComplexObject&lt;/code&gt;) and for each row in it turn that into a property of the new object (or a “column” from a visualisation help). This is a great start and achieved what we wanted but it’s not particularly reusable.&lt;/p&gt;
+
+&lt;p&gt;Lets look at making this a bit more reusable and helpful for other output from Measure-Object that we might want to work with. First up we’ll turn it into a function:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;k&quot;&gt;function &lt;/span&gt;Convert-MeasureObject &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;cmdletbinding&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()]&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;param&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;Object&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[]]&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$InputObject&lt;/span&gt;,
+
+        &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;string&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;]&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Property&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;$Hash&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; @&lt;span class=&quot;o&quot;&gt;{}&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;foreach&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$row&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$InputObject&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nv&quot;&gt;$Hash&lt;/span&gt;.add&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Row&lt;/span&gt;.Property, &lt;span class=&quot;nv&quot;&gt;$InputObject&lt;/span&gt;.Where&lt;span class=&quot;o&quot;&gt;({&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;.Property -eq &lt;span class=&quot;nv&quot;&gt;$row&lt;/span&gt;.property&lt;span class=&quot;o&quot;&gt;})&lt;/span&gt;.&lt;span class=&quot;nv&quot;&gt;$Property&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;PsCustomObject]&lt;span class=&quot;nv&quot;&gt;$Hash&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;So now we’ve got a function that we can use by calling it with our output from Measure-Object using &lt;code class=&quot;highlighter-rouge&quot;&gt;Convert-MeasureObject -InputObject $MeasureObjectOutput -Property 'Sum'&lt;/code&gt;. But this still feels a little cludgy and extra lines and variable assignments we don’t really need if we’re already using the pipeline for the Measure-Object portion of our data gathering and collation.&lt;/p&gt;
+
+&lt;p&gt;So let’s add some pipeline support and tidy things up a little:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;k&quot;&gt;function &lt;/span&gt;Convert-MeasureObject &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;cmdletbinding&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()]&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;param&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;Parameter&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;ValueFromPipeline&lt;span class=&quot;o&quot;&gt;)]&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;Object&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[]]&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$InputObject&lt;/span&gt;,
+
+        &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;string&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;]&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Property&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;begin&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nv&quot;&gt;$Hash&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; @&lt;span class=&quot;o&quot;&gt;{}&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;process&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;foreach&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$row&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$InputObject&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;nv&quot;&gt;$Hash&lt;/span&gt;.add&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Row&lt;/span&gt;.Property, &lt;span class=&quot;nv&quot;&gt;$InputObject&lt;/span&gt;.Where&lt;span class=&quot;o&quot;&gt;({&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;.Property -eq &lt;span class=&quot;nv&quot;&gt;$row&lt;/span&gt;.property&lt;span class=&quot;o&quot;&gt;})&lt;/span&gt;.&lt;span class=&quot;nv&quot;&gt;$Property&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;end&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;PsCustomObject]&lt;span class=&quot;nv&quot;&gt;$Hash&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;Now we’re levaraging the pipeline in a more useful way and can do wonderful things like &lt;code class=&quot;highlighter-rouge&quot;&gt;&amp;lt;someInput&amp;gt; | Measure-Object -Property 'ThatValue' -Sum | Convert-MeasureObject -Property Sum&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;It’s still a little off from a best practice approach as ideally we’d be putting each item back onto the pipeline as they come through in our process block, but the entire point of the object is to do some transformation on pipeline input we kind of need to wait for it all to come through before sending anything back out.&lt;/p&gt;
+
+&lt;p&gt;All that’s missing now is a bit of help text, some verbose logging to help people figure out what’s going on, some unit tests and then we’re good to go and can drop this in our module of choice.&lt;/p&gt;
+
+&lt;p&gt;The fully completed version of the script is available &lt;a href=&quot;https://github.com/ChrisLGardner/PowershellScripts/tree/master/ConvertMeasureObject&quot;&gt;here&lt;/a&gt; along with all the tests I will have written for it.&lt;/p&gt;
+
+&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;/h2&gt;
+
+&lt;p&gt;Hopefully that’s given a nice look at how to appraoch solving an initial problem and then developing it further into a more reusable and complete solution.&lt;/p&gt;</content><author><name></name></author><summary type="html">A user on the PowerShell Slack (available here and invites here) asked about getting specific information out of Measure-Object into a more usable PowerShell objects Their initial approach was to use Select-Object and calculatd properties to do this but I suggested a nicer way to handle it by using a short function and pipeline input.</summary></entry><entry><title type="html">Learning to Teach PowerShell</title><link href="http://localhost:4000/powershell/2018/01/19/learning-to-teach-powershell.html" rel="alternate" type="text/html" title="Learning to Teach PowerShell" /><published>2018-01-19T18:00:00+00:00</published><updated>2018-01-19T18:00:00+00:00</updated><id>http://localhost:4000/powershell/2018/01/19/learning-to-teach-powershell</id><content type="html" xml:base="http://localhost:4000/powershell/2018/01/19/learning-to-teach-powershell.html">&lt;p&gt;I spend a reasonable amount of time on the PowerShell Slack team (&lt;a href=&quot;http://slack.poshcode.org/&quot;&gt;click here for invites&lt;/a&gt;) and we regularly have people new to PowerShell dropping in and asking questions, it recently got me thinking about the way in which I (and the many others) help people with these problems but also how I teach people in general.&lt;/p&gt;
+
+&lt;p&gt;Warning: This is likely to be a somewhat rambling post.&lt;/p&gt;
+
+&lt;!--more--&gt;
+
+&lt;h2 id=&quot;background&quot;&gt;Background&lt;/h2&gt;
+
+&lt;p&gt;I’ve been working with PowerShell for around 4 years now, I followed probably the most common route of copying scripts from online source and hacking around them to make them work for me and then moved on to writing my own scripts and now I’m writing modules, doing unit tests, running them through CI pipelines and all those other cool things that make life with PowerShell easier. Throughout all this I’ve found that PowerShell can be difficult to learn but a few simple rules that the language follows makes it a lot easier, however teaching PowerShell can be considerably more difficult, so I thought I’d document some of the things I’ve learned while trying to teach PowerShell and some of the methods I use when helping with problems.&lt;/p&gt;
+
+&lt;h2 id=&quot;learning-styles&quot;&gt;Learning styles&lt;/h2&gt;
+
+&lt;p&gt;Having spent a number of years working in schools I picked up a few things while fixing AV during teachers’ seminars and other situations, one of them is that there are a number different ways that people learn and figuring out the way a person learns best can be very important to helping them progress through school. I’d always assumed that most people in IT based roles learned best by doing, but I wanted to get some data on that so I &lt;a href=&quot;https://twitter.com/HalbaradKenafin/status/953328408091615232&quot;&gt;asked twitter&lt;/a&gt;. The sample size isn’t particularly big but the heavy slant of data towards a ‘learn by doing’ approach is the sign I was looking for.&lt;/p&gt;
+
+&lt;h2 id=&quot;applying-learning-styles&quot;&gt;Applying learning styles&lt;/h2&gt;
+
+&lt;p&gt;With this assumption in mind let’s look at some of the questions we regularly see in Slack, &lt;a href=&quot;https://reddit.com/r/powershell&quot;&gt;Reddit&lt;/a&gt; and other places, how I usually deal with them and why I do it that way.&lt;/p&gt;
+
+&lt;h3 id=&quot;im-new-to-powershell-whats-the-best-book-to-read&quot;&gt;I’m new to PowerShell, what’s the best book to read&lt;/h3&gt;
+
+&lt;p&gt;This is probably the most common question (or something similar) that you’ll see on Reddit and a few other places, it’s less common on Slack but we still get the occasional one.&lt;/p&gt;
+
+&lt;p&gt;The answer to this is invariably &lt;a href=&quot;https://www.amazon.co.uk/Learn-Windows-PowerShell-Month-Lunches/dp/1617294160/&quot;&gt;Learn PowerShell in a Month of Lunches&lt;/a&gt; by Don Jones and Jeff Hicks. It’s a great book and I’ve read it myself a while ago for some of the great hints and tips that even experienced PowerShell users can benefit from. More recently there is &lt;a href=&quot;https://leanpub.com/powershell101&quot;&gt;PowerShell 101&lt;/a&gt; from Mike F Robbins which has received a lot of praise and based on the content of his blog I’m sure it’s a great book.&lt;/p&gt;
+
+&lt;h3 id=&quot;i-want-to-do-x-with-powershell&quot;&gt;I want to do X with PowerShell&lt;/h3&gt;
+
+&lt;p&gt;This is the more common question we get in Slack, where X can be a huge range of things. This is generally my least favourite style of question and the one I respond to in the least helpful way (at least I think so).&lt;/p&gt;
+
+&lt;p&gt;My typical way of dealing with this sort of request is to suggest some of the cmdlets that might be applicable to their problem, possibly provide some suggestions or small snippets of code that might help. A lot of the time the person at the other end has little PowerShell knowledge but hasn’t expressed that and therefore I’m trying to give them suggestions in the right direction and hopefully they’ll dive into a console or the ISE or VSCode and start playing around with it. More often they want, or need, a bit more and I’m happy to oblige if I can replicate at least part of the problem their trying to solve.&lt;/p&gt;
+
+&lt;p&gt;The problem then comes with those people who, for whatever reason, just can’t quite grasp the necessary PowerShell for the task they are trying to complete. In those cases, I try to step back a bit and break down the problem they are trying to solve into more manageable chunks. Show them how to solve a little bit at a time, show how PowerShell does things and how to tie things together and then slowly build up.&lt;/p&gt;
+
+&lt;h3 id=&quot;ive-got-a-script-for-doing-y-but-it-doesnt-work&quot;&gt;I’ve got a script for doing Y but it doesn’t work&lt;/h3&gt;
+
+&lt;p&gt;This is probably my favourite question to get, the person has put in some amount of effort to get a working solution and just needs a bit of help to get it finished or troubleshoot some issue. I often dislike troubleshooting my own code because I’ve likely been working on it for too long to notice anything obvious but other people’s code can be interesting and querying some of their choices can help both of you understand things better.&lt;/p&gt;
+
+&lt;p&gt;The way I find best to help with these issues is to take a standard troubleshooting approach, start with the error and work from there. If there are no obvious reasons the error should be occurring, then you start with the smallest amount of code necessary and slowly add more until you hit the error. Debuggers like VSCode help a lot with this, as do Pester tests for the various code paths (especially the unhappy paths through the code), once you narrow down the problem it usually becomes reasonably easy to solve it.&lt;/p&gt;
+
+&lt;p&gt;The more difficult, and potentially interesting, variety of these problems comes when someone has a script which is working but not quite how they intended it, or their approach seems very inefficient. The interesting parts come when you ask around why they are doing things in certain ways, usually it’s because they didn’t know of alternatives (often with +=’ing arrays) but there are also times when they have strange setups that require jumping through various hoops.&lt;/p&gt;
+
+&lt;h2 id=&quot;what-ive-learned&quot;&gt;What I’ve learned&lt;/h2&gt;
+
+&lt;p&gt;The big thing I’ve learned/realised is that I’m a big fan of the “teach a man to fish” approach, I’ll occasionally go with the “give a man a fish” approach when I have to but I’ll usually try giving the man a few little bits of fish first and see if he can put them together with some other bits of fish he finds lying around. There are a few of the other regulars on Slack that I’ve picked up on their usual way to help people and have a reasonable idea of if I should help out as well.&lt;/p&gt;
+
+&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;/h2&gt;
+
+&lt;p&gt;This blog post was partially inspired by &lt;a href=&quot;https://donjones.com/2017/10/19/become-the-master-or-go-away/&quot;&gt;Don Jones’ post last year&lt;/a&gt; because it was becoming apparent to me that even though I’m not a master in every area of PowerShell, I know more than enough to be helping people more. It’s what really pushed me to speak at more events and it’s making me want to write more blog posts, though they’ll likely be more technical where possible because I find them to be easier to write.&lt;/p&gt;</content><author><name></name></author><summary type="html">I spend a reasonable amount of time on the PowerShell Slack team (click here for invites) and we regularly have people new to PowerShell dropping in and asking questions, it recently got me thinking about the way in which I (and the many others) help people with these problems but also how I teach people in general. Warning: This is likely to be a somewhat rambling post.</summary></entry><entry><title type="html">Find all versions of the same file</title><link href="http://localhost:4000/powershell/2017/11/02/find-versions-of-the-same-file.html" rel="alternate" type="text/html" title="Find all versions of the same file" /><published>2017-11-02T17:00:00+00:00</published><updated>2017-11-02T17:00:00+00:00</updated><id>http://localhost:4000/powershell/2017/11/02/find-versions-of-the-same-file</id><content type="html" xml:base="http://localhost:4000/powershell/2017/11/02/find-versions-of-the-same-file.html">&lt;p&gt;While on site with a customer recently we discovered that their VSTS build for producing their Selenium tests was producing around 800MB of artifacts, this seemed pretty high for something that should just be producing a bunch of test DLLs. So I turned to PowerShell to figure out what was actually being produced and where it was.
+&lt;!--more--&gt;&lt;/p&gt;
+
+&lt;p&gt;First up was figuring out if there was any duplication of files, the folder structure looked pretty comprehensive so I guessed they had a lot of projects in Visual Studio and that suggested there might be a bit of overlap between dependencies.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;nv&quot;&gt;$TotalFiles&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;Get-ChildItem&lt;/span&gt; -Path .\ -Recurse -File | &lt;span class=&quot;nb&quot;&gt;Group-Object&lt;/span&gt; -Property Name | &lt;span class=&quot;nb&quot;&gt;Sort-Object&lt;/span&gt; -Property Count -Descending&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;This showed a pretty impressive list of files, lots of 1s and 2s of files named like areas of their application. However it also revealed the main source of the extra bloat; 89 copies of WebDriver.dll, almost as many copies of NewtonSoft.Json.dll and a few other similar common dlls along with the associated pdbs and more. How to deal with this though? Surely every project is using the same versions of those files? Everyone standardises to a single version of common libraries don’t they? The answer was (in reverse order) “Of course they don’t”, “Of course they aren’t” and “PowerShell of course”.&lt;/p&gt;
+
+&lt;p&gt;So how can we use PowerShell to solve this? Currently we just have a long list of files and the number of each we have. Luckily PowerShell is helpful enough to provide version information on FileInfo objects (those returned by Get-ChildItem) so with a bit of creative pipelining we can get some more useful information about the versions in use.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;nv&quot;&gt;$TotalFiles&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;Where&lt;/span&gt;-Object &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;.Count -ge 5 -and &lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;.name -like &lt;span class=&quot;k&quot;&gt;*&lt;/span&gt;.dll&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt; | &lt;span class=&quot;k&quot;&gt;Foreach&lt;/span&gt;-Object &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;new-variable&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;.name -value &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;Get-ChildItem&lt;/span&gt; -Path .\ -filter &lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;.name -Recurse | &lt;span class=&quot;nb&quot;&gt;Select-Object&lt;/span&gt; -ExpandProperty VersionInfo | &lt;span class=&quot;nb&quot;&gt;Select-Object&lt;/span&gt; -Property ProductVersion -Unique&lt;span class=&quot;o&quot;&gt;)}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;That’s a hefty pipeline to take in all at once so lets break it down a bit:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;nv&quot;&gt;$TotalFiles&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;Where&lt;/span&gt;-Object &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;.Count -ge 5 -and &lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;.name -like &lt;span class=&quot;k&quot;&gt;*&lt;/span&gt;.dll&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;First we get all the files that end in dll, because we can guarantee the common libraries are correctly versioned, and we also only want anything that appears more than 5 times, mostly this was an arbitrary amount I decided seemed like a reasonable cutoff but it could easily be lower or higher depending on the dataset we’re working with.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;k&quot;&gt;Foreach&lt;/span&gt;-Object &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;new-variable&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;.name -value &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;....&lt;span class=&quot;o&quot;&gt;)}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;Then we iterate over all of those we’ve found using Foreact-Object and create a new variable named the same as the file. We don’t intend to ever directly call any of these uing $ notation but it stores the output in a convenient location that we can query pretty easily assuming our session doesn’t have a huge number of variables for some reason.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;nb&quot;&gt;Get-ChildItem&lt;/span&gt; -Path .\ -filter &lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;.name -Recurse | &lt;span class=&quot;nb&quot;&gt;Select-Object&lt;/span&gt; -ExpandProperty VersionInfo | &lt;span class=&quot;nb&quot;&gt;Select-Object&lt;/span&gt; -Property ProductVersion -Unique&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;This is the real meat of the command, and some very inefficient meat it is as well but for my dataset of a few thousand files it wasn’t too inefficient. First we get all the files named the same as the current item in the pipeline, NewtonSoft.Json.dll for example, we then expand it’s VersionInfo property into a new object on the pipeline. Then we finish off by selecting just the ProductVersion of those items we’ve found and filtering it even further by just selecting the unique ones. All of this is stored in the variable named NewtonSoft.Json&lt;/p&gt;
+
+&lt;p&gt;So what do we do with this new information we’ve got sitting in our variables? We can query those variables and find any that have multiple versions.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;span class=&quot;nb&quot;&gt;Get-Variable&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;Where&lt;/span&gt;-Object &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;.name -like &lt;span class=&quot;s1&quot;&gt;'*.dll'&lt;/span&gt; -and &lt;span class=&quot;nv&quot;&gt;$_&lt;/span&gt;.value -is &lt;span class=&quot;s1&quot;&gt;'System.Array'&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;This will take all our variables in the session, find any that end in .dll and that are also Arrays. We’re then presented with a (hopefully) short list of variables and their values similar to below.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;Name                    Value
+----                    -----
+NewtonSoft.Json.dll     @&lt;span class=&quot;o&quot;&gt;({&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;ProductVerion&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;9.1.0&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;,&lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;ProductVersion&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;6.5.0&lt;span class=&quot;o&quot;&gt;})&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;So at a glance we can see the various versions in use. We could have used -ExpandProperty on our final Select-Object statement in the Foreach loop to drop the ProductVersion from this output, I find both to be easily readable and this approach means we can call ${NewtonSoft.Json.dll} and see the usual styled object output.&lt;/p&gt;
+
+&lt;h2 id=&quot;summary&quot;&gt;Summary&lt;/h2&gt;
+
+&lt;p&gt;So as we can see it’s pretty easy to get all the versions of any number of files and then figure out how many different versions you actually have. A similar process could be applied to files without VersionInfo using Get-FileHash to compare them and detect uniqueness.&lt;/p&gt;
+
+&lt;p&gt;Managing dependency versions can be difficult, especially in larger solutions or solutions that have evolved over a longer length of time, hopefully you catch it early enough that standardising is a less time consuming experience. In the case of the customer they were in pretty good shape as they only had around 3 different versions of a few common libraries so fixing those depenencies should be a pretty easy fix. Once that’s implemented they can clean up their build process to flatten out their folders and then only produce one copy of each and save themselves a lot of space in their build artifacts and a noticeable amount of time in their release pipelines for copying these artifacts around.&lt;/p&gt;</content><author><name></name></author><summary type="html">While on site with a customer recently we discovered that their VSTS build for producing their Selenium tests was producing around 800MB of artifacts, this seemed pretty high for something that should just be producing a bunch of test DLLs. So I turned to PowerShell to figure out what was actually being produced and where it was.</summary></entry><entry><title type="html">Install MIM Portal with PowerShell</title><link href="http://localhost:4000/powershell/2017/10/18/install-mim-portal-with-ps.html" rel="alternate" type="text/html" title="Install MIM Portal with PowerShell" /><published>2017-10-18T12:00:00+01:00</published><updated>2017-10-18T12:00:00+01:00</updated><id>http://localhost:4000/powershell/2017/10/18/install-mim-portal-with-ps</id><content type="html" xml:base="http://localhost:4000/powershell/2017/10/18/install-mim-portal-with-ps.html">&lt;p&gt;Following on from my &lt;a href=&quot;http://localhost:4000/powershell/2017/09/21/install-mim-sync-with-ps.html&quot;&gt;earlier post&lt;/a&gt; about installing MIM Sync I’ve moved on to installing MIM Portal and Service via PowerShell DSC.&lt;/p&gt;
+
+&lt;!--more--&gt;
+
+&lt;p&gt;MIM Portal and Service have some pretty big dependencies, the major one being SharePoint 2013 or 2016. Luckily for me the Azure marketplace has an image with this already installed but not configured, this saved me a good amount of time downloading the ISO, unpacking it and installing it, which proved to be very important when Azure has a 90 minute timeout on the DSC extension.&lt;/p&gt;
+
+&lt;h2 id=&quot;prerequisites&quot;&gt;Prerequisites&lt;/h2&gt;
+
+&lt;p&gt;MIM also depends on SQL, not a problem as we’ve already got a dedicated SQL server for Sync and SharePoint to use, but it does the dependency in a dumb way by requiring it’s “installed” on the machine running the installer. You can get around this by installing SQL Server Management Studio, I dropped the ISO into Azure Files to speed up downloading it so I can use Copy-Item rather than Invoke-WebRequest (which is very slow for large files due to caching them in memory while downloading).&lt;/p&gt;
+
+&lt;p&gt;You can access Azure Files pretty easily as a PSDrive using a simple Script block to connect:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;Script DownloadSSMS &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    GetScript &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt; @&lt;span class=&quot;o&quot;&gt;{}&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    TestScript &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;Test-Path&lt;/span&gt; -Path &lt;span class=&quot;s1&quot;&gt;'C:\Packages\SSMS-Setup-ENU.exe'&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    SetScript &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nv&quot;&gt;$FileSystemCredential&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;New-Object &lt;/span&gt;System.Management.Automation.PSCredential &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;AZURE\&amp;lt;UserName&amp;gt;&quot;&lt;/span&gt;, &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;ConvertTo-SecureString&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;&amp;lt;AccessKey&amp;gt;&quot;&lt;/span&gt; -AsPlainText -Force&lt;span class=&quot;o&quot;&gt;))&lt;/span&gt;
+        &lt;span class=&quot;nb&quot;&gt;New-PSDrive&lt;/span&gt; -Name Q -PSProvider Filesystem -Root \\&amp;lt;StorageAccount&amp;gt;.file.core.windows.net\&amp;lt;Container&amp;gt; -Credential &lt;span class=&quot;nv&quot;&gt;$FileSystemCredential&lt;/span&gt;
+        &lt;span class=&quot;nb&quot;&gt;Copy-Item&lt;/span&gt; -path &lt;span class=&quot;s2&quot;&gt;&quot;Q:\SSMS-Setup-ENU.exe&quot;&lt;/span&gt; -Destination C:\Packages
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+Package InstallSSMS &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    Name &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'SQL Server Management Studio'&lt;/span&gt;
+    ProductId &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'CD1FA99A-EEF9-44BE-8A89-8FB17F1C5437'&lt;/span&gt;
+    Path &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;C:\Packages\SSMS-Setup-ENU.exe&quot;&lt;/span&gt;
+    Arguments &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;/install /quiet /norestart /log c:\Packages\ssms.log&quot;&lt;/span&gt;
+    PsDscRunAsCredential &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$DomainCredentials&lt;/span&gt;
+    Ensure &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'Present'&lt;/span&gt;
+    DependsOn &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'[Script]DownloadSSMS'&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;Ideally you’d store the access key in KeyVault or similar and pull it out at deploy time as a secure string but I’m showing the alternative method here for demo purposes. I chose to copy to C:\Packages as I know that folder will exist at run time as Azure uses it to store all the extensions that it installs and there will always be at least 1 of those, the DSC extension used here.&lt;/p&gt;
+
+&lt;p&gt;The documentation for installing MIM Portal and it’s prerequisites assume you are using &lt;a href=&quot;https://docs.microsoft.com/en-us/microsoft-identity-manager/prepare-server-sharepoint&quot;&gt;SharePoint 2013&lt;/a&gt;, however a &lt;a href=&quot;http://www.mim.ninja/2017/08/17/installing-mim-on-sharepoint-2016/&quot;&gt;helpful blogger&lt;/a&gt; linked a post on the changes needed for SharePoint 2016. &lt;strong&gt;One caveat of using SharePoint 2016 is that you will need to use MIM SP1.&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;As detailed in that blog you’ll need to set the Compatability Level of the site to 15, SharePointDSC can handle this quite easily as part of the creation of the site:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;SPSite MIMPortalHostSite &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    Url                      &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;https://mim.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    OwnerAlias               &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$SharePointAdminCredential&lt;/span&gt;.UserName
+    Name                     &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'MIM'&lt;/span&gt;
+    Template                 &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;STS#1&quot;&lt;/span&gt;
+    CompatibilityLevel       &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; 15
+    PsDscRunAsCredential     &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$SharePointAdminCredential&lt;/span&gt;
+    DependsOn                &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;[SPWebApplication]MIMPortalWebApp&quot;&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;The other change to SharePoint that needs to be made is disabling Server Side View, this is usually a simple change using the code examples in either the documentation of the blog post however with DSC this is a little less easy. There is no SharePointDSC options for it, a normal Script block won’t do it either as it needs to run as the SharePoint admin, the Credential property on Script just launches an Invoke-Command session as that user but you run into double hop issues that way and due to some issue I never quite diagnosed fully this wouldn’t work when using PSDscRunAsCredential. So my solution was to use the Script resource but create my own Invoke-Command session within it and make use of CredSSP (I’d prefer not to but the SharePoint Snapin talks to SQL), we’d enabled CredSSP earlier in our configuration for our other SharePoint resources.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;Script DisableServerSideView &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    GetScript &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt; @&lt;span class=&quot;o&quot;&gt;{}&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    TestScript &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nb&quot;&gt;Test-Path&lt;/span&gt; -Path C:\Users\sp2016_admin\Documents\ViewStateOnServer.txt
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    SetScript &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        Invoke-Command -ComputerName &lt;span class=&quot;nv&quot;&gt;$env&lt;/span&gt;:computername -ScriptBlock &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            Add-PSSnapin -Name Microsoft.SharePoint.Powershell
+            &lt;span class=&quot;nv&quot;&gt;$contentService&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;Microsoft.SharePoint.Administration.SPWebService]::ContentService
+            &lt;span class=&quot;nv&quot;&gt;$contentService&lt;/span&gt;.ViewStateOnServer &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$False&lt;/span&gt;
+            &lt;span class=&quot;nv&quot;&gt;$contentService&lt;/span&gt;.Update&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+            &lt;span class=&quot;nb&quot;&gt;Set-Content&lt;/span&gt; -Path C:\Users\sp2016_admin\Documents\ViewStateOnServer.txt -Value &lt;span class=&quot;s1&quot;&gt;'View State Changed to False'&lt;/span&gt; -force
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;  -Authentication CredSSP -Credential &lt;span class=&quot;nv&quot;&gt;$Using&lt;/span&gt;:SharePointAdminCredential
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;h2 id=&quot;install-portal-and-service&quot;&gt;Install Portal And Service&lt;/h2&gt;
+
+&lt;p&gt;With all that done we finally get to the point of actually installing MIM Portal and Service itself. The &lt;a href=&quot;https://docs.microsoft.com/en-us/microsoft-identity-manager/install-mim-service-portal&quot;&gt;documentation&lt;/a&gt; for this of course shows all the lovely screenshots with buttons to click and boxes to fill in, not an option via DSC so out comes Orca and a manual install using /l*v logging to figure out what all the various properties I need to tell it are.&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;nv&quot;&gt;$InstallArguments&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; @&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;#Core Properties needed
+&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;TRANSFORM=C:\Packages\portal.mst&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;FEATURES_TO_INSTALL=ALL&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;FEATURES_TO_EXCLUDE=PAMServices&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SHAREPOINTVERSION=2013OR2016&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;ENABLE_REPORTING=0&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;CERTIFICATE_NAME=ForefrontIdentityManager&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;ALLUSERS=1&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;STS_PORT=5726&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;RMS_PORT=5725&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;ACCEPT_EULA=1&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;FIREWALL_CONF=1&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SQMOPTINSETTING=1&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;REBOOT=ReallySuppress&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;/l*v C:\MIM\&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;Get-Date&lt;/span&gt; -format &lt;span class=&quot;s1&quot;&gt;'yyyy-MM-dd-hh-mm'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;.log&quot;&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;#SQL Server Properties
+&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SQLSERVER_SERVER=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$SqlNodeName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SQLSERVER_DATABASE=FIMService&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;EXISTINGDATABASE=0&quot;&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;#MIM Service Properties
+&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SERVICEADDRESS=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Env&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;:ComputerName&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SERVICE_ACCOUNT_NAME=MIMPortalService&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SERVICE_ACCOUNT_PASSWORD=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Credential&lt;/span&gt;.GetNetworkCredential&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;.Password)&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SERVICE_ACCOUNT_DOMAIN=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainNetBiosName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SERVICE_ACCOUNT_EMAIL=MIMPortalService@&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;#MIM Sync Properties
+&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;RUNNING_USER_EMAIL=Administrator@&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SYNCHRONIZATION_SERVER_ACCOUNT=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainNetBiosName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;\MIMSyncService&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SYNCHRONIZATION_SERVER_ACCOUNT_NAME=MIMSyncService&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SYNCHRONIZATION_SERVER_ACCOUNT_DOMAIN=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainNetBiosName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SERVICE_ACCOUNT_DOMAIN=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainNetBiosName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SYNCHRONIZATION_SERVER=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$SyncNodeName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SERVICEADDRESS=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Env&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;:Computername&quot;&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;#SharePoint Properties
+&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SHAREPOINTUSERS_CONF=1&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SHAREPOINTTIMEOUT=1440&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;SHAREPOINT_URL=https://mim.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;#MIM Self Service Password Reset Registration Properties
+&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;REGISTRATION_ACCOUNT=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainNetBiosName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;\sspr_registration&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;REGISTRATION_ACCOUNT_DOMAIN=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainNetBiosName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;REGISTRATION_ACCOUNT_NAME=sspr_registration&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;REGISTRATION_ACCOUNT_PASSWORD=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Credential&lt;/span&gt;.GetNetworkCredential&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;.Password)&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;REGISTRATION_PORT=8080&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;REGISTRATION_SERVERNAME=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Env&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;:ComputerName&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;REGISTRATION_PORTAL_URL=https://registartion.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;REGISTRATION_HOSTNAME=registration.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;IS_REGISTRATION_EXTRANET=Extranet&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;REGISTRATION_FIREWALL_CONF=1&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;REGISTRATION_FIREWALL_CONF=1&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;REGISTRATION_FIREWALLMODE=INSTALL&quot;&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;#MIM Self Service Password Reset Properties
+&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;RESET_ACCOUNT=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainNetBiosName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;\sspr_reset&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;RESET_ACCOUNT_DOMAIN=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainNetBiosName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;RESET_ACCOUNT_NAME=sspr_reset&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;RESET_ACCOUNT_PASSWORD=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Credential&lt;/span&gt;.GetNetworkCredential&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;.Password)&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;RESET_PORT=8088&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;RESET_SERVERNAME=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Env&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;:ComputerName&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;RESET_HOSTNAME=reset.&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;IS_RESET_EXTRANET=Extranet&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;RESET_FIREWALL_CONF=1&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;FIREWALLMODE=INSTALL&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;RESET_FIREWALLMODE=INSTALL&quot;&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;#MIM PAM Properties - Not sure if these are needed if we're not installing PAM
+&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;MIMPAM_ACCOUNT_DOMAIN=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainNetBiosName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;#Exchange Properties
+&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;MAIL_SERVER=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$ExchangeNodeName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;MAIL_SERVER_USE_SSL=1&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;MAIL_SERVER_IS_EXCHANGE=1&quot;&lt;/span&gt;
+    &lt;span class=&quot;s2&quot;&gt;&quot;POLL_EXCHANGE_ENABLED=1&quot;&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;As you can see there are a few properties to set. If you’re not using the Self Service Password Reset functionality or it’s on a different machine then those properties will not be needed and some others will but unfortunately I didn’t get those.&lt;/p&gt;
+
+&lt;p&gt;The transform file I’m using adds 2 new Properties:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;IS_SYNC_SERVICE_RUNNING &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; 0
+IS_SYNC_SERVICE_EXISTS &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; 0&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;This was due to the MIM Portal server not detecting the Sync server, almost certainly due to a firewall issue but that’s next on my list of things to investigate and ensure the ports are open correctly on the Sync server.&lt;/p&gt;
+
+&lt;h3 id=&quot;dsc-install&quot;&gt;DSC Install&lt;/h3&gt;
+
+&lt;p&gt;With all those properties set and stored in an array we can then use the Package resource in the same way as in the MIM Sync install:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;Package MimPortalInstall &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    Name &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'Microsoft Identity Manager Service and Portal'&lt;/span&gt;
+    ProductId &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'0782FB14-023A-430F-B0D5-4AE1D1CCFCAA'&lt;/span&gt;
+    Path &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;C:\MIM\Service and Portal\Service and Portal.msi&quot;&lt;/span&gt;
+    Arguments &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot; &lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$InstallArguments&lt;/span&gt; -join &lt;span class=&quot;s1&quot;&gt;' '&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+    PsDscRunAsCredential &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$SharePointAdminCredential&lt;/span&gt;
+    Ensure &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'Present'&lt;/span&gt;
+    DependsOn &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'[Script]ExtractMimIso'&lt;/span&gt;,&lt;span class=&quot;s1&quot;&gt;'[SPSite]MIMPortalHostSite'&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;This installer can take a little while to complete, on its own it takes around 10 minutes but when added to the SharePoint configuration and other things happening in the DSC configuration for this server then it starts to drift very close to the 90 minute timeout. The configuration will still complete correctly but Azure will report it as a failure, which can cause your deployment pipeline to fail if using something like VSTS.&lt;/p&gt;
+
+&lt;h3 id=&quot;msiexec-install&quot;&gt;MSIExec install&lt;/h3&gt;
+
+&lt;p&gt;Under the hood the Package resource detects that it’s an msi being installed and calls msiexec.exe with &lt;code class=&quot;highlighter-rouge&quot;&gt;/qn&lt;/code&gt; and &lt;code class=&quot;highlighter-rouge&quot;&gt;/i&lt;/code&gt; switches. Following a similar approach we can install MIM Portal and Service when logged on as the correct user (or using Invoke-Command and CredSSP) with a command line similar to below:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt;&lt;span class=&quot;nv&quot;&gt;$StartProcessParams&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; @&lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    Filepath &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'msiexec.exe'&lt;/span&gt;
+    Argumentlist &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; @&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;
+        &lt;span class=&quot;s1&quot;&gt;'/i &quot;C:\MIM\Service and Portal\Service and Portal.msi&quot;'&lt;/span&gt;
+        &lt;span class=&quot;s1&quot;&gt;'/qn'&lt;/span&gt;
+        &lt;span class=&quot;nv&quot;&gt;$InstallArguments&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+    Wait &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$True&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+&lt;span class=&quot;nb&quot;&gt;Start-Process&lt;/span&gt; @StartProcessParams&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;This will perform the same installation as DSC and take the same amount of time but won’t add the verification that the Package resource adds to ensure the installation completed successfully, for that you’d need to check the log file yourself. For the log file I’ve found that it’s around 1400kb if it was a successful installation and anything more than that usually suggests it’s failed to install, probably in the SharePoint section.&lt;/p&gt;
+
+&lt;h2 id=&quot;installation-problems&quot;&gt;Installation Problems&lt;/h2&gt;
+
+&lt;p&gt;The main area I’ve found installation problems are with SharePoint, usually with the WSP failling to install for a variety of reasons. The most common was due to another update happening at the same time and OWSTIMER reporting a conflict, I don’t know enough about SharePoint to know if it’s possible to deal with this in an easy way but I just left it a few minutes and tried again and it would usually work.&lt;/p&gt;
+
+&lt;p&gt;The error message for this looks something like this:&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;An update conflict has occurred, and you must re-try this action. The object LMTRepopulationJob Name=User Profile Service Application Proxy_LMTRepopulationJob was updated by &amp;lt;DomainName&amp;gt;\&amp;lt;SharePointAdmin&amp;gt;, in the OWSTIMER (3336) process, on machine &amp;lt;ComputerName&amp;gt;.  View the tracing log for more information about the conflict.
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;One major issue I found was that there were times the install would fail to install the WSP and the retraction wouldn’t complete correctly. This led to future attemtps failling for reasons related to the WSP and any attempts to remove it claimed they were successful but MIM still failed to install because it thought the WSP was installed. The only solution I found was to nuke the SQL and Portal servers and start again. Snapshots before applying the DSC helped speed this up rather than redeploying the full environment.&lt;/p&gt;
+
+&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;/h2&gt;
+
+&lt;p&gt;Hopefully this proves itself useful to somebody, it was certainly an interesting experience figuring out all the properties needed and fighting the installer to correctly install MIM Portal manually.&lt;/p&gt;
+
+&lt;p&gt;Next blog post will be on something a bit less installation focused but probably still DSC related, I’ll have to see what new challenge I have to deal with on the next project I work on.&lt;/p&gt;</content><author><name></name></author><summary type="html">Following on from my earlier post about installing MIM Sync I’ve moved on to installing MIM Portal and Service via PowerShell DSC.</summary></entry><entry><title type="html">Install MIM Sync with PowerShell</title><link href="http://localhost:4000/powershell/2017/09/21/install-mim-sync-with-ps.html" rel="alternate" type="text/html" title="Install MIM Sync with PowerShell" /><published>2017-09-21T12:00:00+01:00</published><updated>2017-09-21T12:00:00+01:00</updated><id>http://localhost:4000/powershell/2017/09/21/install-mim-sync-with-ps</id><content type="html" xml:base="http://localhost:4000/powershell/2017/09/21/install-mim-sync-with-ps.html">&lt;p&gt;A recent project involved installing Microsoft Identity Manager (MIM) 2016 SP1 as part of a deployment to Azure. As this is being done using DSC there was no way to interact with the installation or click buttons in a installation wizard, so PowerShell to the rescue.
+&lt;!--more--&gt;
+MIM is a pretty complicated application, it has a number of different components that need to be installed on various different hosts and some interesting requirements as part of that. For the first part of this installation I needed to install MIM’s Synchronization Service, which handles running the various management agents and communicating with other systems like AD, CRM etc. This has a few requirements that are well documented but most important are .net 3.5 and a SQL server.&lt;/p&gt;
+
+&lt;p&gt;Helpfully Microsoft provide a batch file with the information you need to provide to the installer to automate installing MIM Sync, available in the root of the MIM Sync directory next to the msi. Taking the bulk of this batch file and turning it into PowerShell was easy, populating the various variables with values generated as part of the DSC configuration to ensure it was always up to date. However this script assumes that SQL Server is installed on the local machine and doesn’t offer any parameters to pass to the msi to change this.&lt;/p&gt;
+
+&lt;p&gt;When manually installing MIM Sync there is a handy box for choosing which SQL server to use:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://localhost:4000/assets/mimsyncsql.png&quot; alt=&quot;MIMSync&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Running this installer with the /l*v flag to enable verbose logging and digging through the logs and Orca revealed a nice and simple set of parameters that are changed by the UI:&lt;/p&gt;
+&lt;ul&gt;
+  &lt;li&gt;STORESERVER - the name of the SQL server to use&lt;/li&gt;
+  &lt;li&gt;SQLServerStore - Toggles between RemoteMachine and LocalMachine&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Unfortunately due to being an msi we can’t provide SQLServerStore parameter at the command line as it’s not in upper case, the solution was a simple MST file which sets SQLServerStore to RemoteMachine and adds a STORESERVER property with a value of 123 so we can provide it at the command line.&lt;/p&gt;
+
+&lt;p&gt;This results in a nice block of DSC config that looks like this, with the important bit being lines 17 and 18:&lt;/p&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-powershell&quot; data-lang=&quot;powershell&quot;&gt;&lt;table class=&quot;rouge-table&quot;&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td class=&quot;gutter gl&quot;&gt;&lt;pre class=&quot;lineno&quot;&gt;1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+&lt;/pre&gt;&lt;/td&gt;&lt;td class=&quot;code&quot;&gt;&lt;pre&gt; &lt;span class=&quot;c1&quot;&gt;#START Install MIM Sync Service
+&lt;/span&gt;
+    &lt;span class=&quot;nv&quot;&gt;$InstallArguments&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; @&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;SERVICEACCOUNT=MIMSyncService&quot;&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;SERVICEPASSWORD=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$Credential&lt;/span&gt;.GetNetworkCredential&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;.Password)&quot;&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;SERVICEDOMAIN=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainNetbiosName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;GROUPADMINS=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainNetbiosName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;\MIMSyncAdmins&quot;&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;GROUPOPERATORS=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainNetbiosName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;\MIMSyncOperators&quot;&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;GROUPACCOUNTJOINERS=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainNetbiosName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;\MIMSyncJoiners&quot;&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;GROUPBROWSE=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainNetbiosName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;\MIMSyncBrowse&quot;&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;GROUPPASSWORDSET=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$DomainNetbiosName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;\MIMSyncPasswordReset&quot;&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;ACCEPT_EULA=1&quot;&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;FIREWALL_CONF=1&quot;&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;ADDLOCAL=All&quot;&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;SQMOPTINSETTING=1&quot;&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;REBOOT=ReallySupress&quot;&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;STORESERVER=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$SqlNodeName&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;TRANSFORM=C:\Packages\sync.mst&quot;&lt;/span&gt;
+        &lt;span class=&quot;s2&quot;&gt;&quot;/l*v C:\MIM\&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;Get-Date&lt;/span&gt; -format &lt;span class=&quot;s1&quot;&gt;'yyyy-MM-dd-hh-mm'&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;.log&quot;&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+    Package MimSyncInstall &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        Name &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'Microsoft Identity Manager Synchronization Service'&lt;/span&gt;
+        ProductId &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'5A7CB0A3-7AA2-4F40-8899-02B83694085F'&lt;/span&gt;
+        Path &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;C:\MIM\Synchronization Service\Synchronization Service.msi&quot;&lt;/span&gt;
+        Arguments &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;/qn &lt;/span&gt;&lt;span class=&quot;k&quot;&gt;$(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$InstallArguments&lt;/span&gt; -join &lt;span class=&quot;s1&quot;&gt;' '&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;
+        PsDscRunAsCredential &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nv&quot;&gt;$DomainCredentials&lt;/span&gt;
+        Ensure &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'Present'&lt;/span&gt;
+        DependsOn &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;'[Package]InstallSSMS'&lt;/span&gt;,&lt;span class=&quot;s1&quot;&gt;'[Script]ExtractMimIso'&lt;/span&gt;,&lt;span class=&quot;s1&quot;&gt;'[xADGroup]MimSyncWmiPasswordManagement'&lt;/span&gt;,&lt;span class=&quot;s1&quot;&gt;'[xADGroup]MimSyncConnectorBrowse'&lt;/span&gt;,&lt;span class=&quot;s1&quot;&gt;'[xADGroup]MimSyncJoiners'&lt;/span&gt;,&lt;span class=&quot;s1&quot;&gt;'[xADGroup]MimSyncOperators'&lt;/span&gt;,&lt;span class=&quot;s1&quot;&gt;'[xADGroup]MimSyncAdmins'&lt;/span&gt;,&lt;span class=&quot;s1&quot;&gt;'[xADUser]MimSyncService'&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+&lt;span class=&quot;c1&quot;&gt;#END Install MIM Sync Service&lt;/span&gt;&lt;/pre&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;p&gt;With this block of code and all the correct users and groups being created by other DSC resources I’ve now got a config which will happily install MIM Sync and use a remote SQL Server.&lt;/p&gt;
+
+&lt;p&gt;Next I’m looking at automating the install of MIM Portal and Service, which is considerably more complicated because it involves the use of SharePoint as a pre-requisite.&lt;/p&gt;</content><author><name></name></author><summary type="html">A recent project involved installing Microsoft Identity Manager (MIM) 2016 SP1 as part of a deployment to Azure. As this is being done using DSC there was no way to interact with the installation or click buttons in a installation wizard, so PowerShell to the rescue.</summary></entry></feed>
