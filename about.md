@@ -8,9 +8,9 @@ permalink: /about/
 
 # About me #
 
-I'm an automation enthusiast with a focus on PowerShell and the Microsoft stack, living in the north of England. I currently work for [Black Marble](https://www.blackmarble.com) as a Consultant specialising in DevOps and ALM using Azure DevOps (Server and Services), with a little bit of dabbling in Azure for both IaaS and PaaS solutions. I've been using PowerShell for over 5 years and make use of it daily for all my automation.
+I'm an automation enthusiast with a focus on PowerShell and the Microsoft stack, living in the north of England. I currently work for [Sage](https://www.sage.com) as a Live Services Specialist, supporting a number of production services hosted in Azure and AWS. I've been using PowerShell for over 7 years and make use of it daily for all my automation.
 
-I contribute to a variety of open source projects, primarily DSC Resources, and they can all be found on my Github linked below.
+I contribute to a variety of open source projects and they can all be found on my Github linked below.
 
 I'm always available to speak at user groups and other events about almost anything PowerShell or Azure DevOps related. I've spoken at a number of UK user groups previously, at the PowerShell and DevOps Summit, at PSConfEU, PSConfAsia, and WinOps London.
 
